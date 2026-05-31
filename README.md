@@ -19,15 +19,24 @@
 
 ## 五阶段实施
 
-1. **阶段一（地基）**：项目骨架 + 基础设施 + Pydantic Schema + 规则YAML
-2. **阶段二（确定性管线）**：HardGate + L2初筛 + 数据获取 + 策略计算 + 报告
-3. **阶段三（LLM智能层）**：双Agent + SharedContext + 智能分析
-4. **阶段四（质量加固）**：CI + 文档 + examples
-5. **阶段五（回测验证）**：Walk-Forward 滚动窗口 → 分红验证 → PR兑现率 + 超额收益（vs 无风险利率）
+1. **阶段一（地基）✅**：Pydantic v2 Schema + YAML加载器 + Tushare适配器(22接口) + 19数据模型 + JSON/Parquet存储
+2. **阶段二（确定性管线）✅**：HardGate(6项否决) + L2初筛(20分) + 公司5分类 + OE双路径 + 穿透回报率 + L5安全边际 + 乘法打分
+3. **阶段三（LLM智能层）✅**：DeepSeek/OpenAI/Anthropic客户端 + CFA分析Agent(9模块Rubric+三段式证据链) + CPA+CFE审计Agent(10项审计程序) + Jinja2报告 + CLI
+4. **阶段四（质量加固）✅**：覆盖率≥80% (112测试) + E2E功能测试 + ruff/mypy零错误
+5. **阶段五（回测验证）⏳**：Walk-Forward 滚动窗口 → 分红验证 → PR兑现率 + 超额收益（vs 无风险利率）
 
 ## 快速开始
 
 ```bash
+# 安装
+pip install -r requirements.txt  # 或 poetry install
+
+# 配置环境变量 (.env)
+TUSHARE_TOKEN=your_tushare_token
+DEEPSEEK_API_KEY=your_deepseek_key  # 可选, LLM Agent
+
+# 分析股票
+python -m src.cli 600519.SH --html
 # 安装依赖
 poetry install
 
