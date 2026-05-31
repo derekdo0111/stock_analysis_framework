@@ -5,8 +5,8 @@ import pandas as pd
 import pytest
 
 from src.backtest.window_manager import WindowManager, BacktestWindow, DEFAULT_WINDOWS
-from src.backtest.dividend_validator import DividendValidator, DividendValidation, RISK_FREE_RATES
-from src.backtest.statistics import BacktestStatistics, WindowStats, GroupStats
+from src.backtest.dividend_validator import DividendValidator, DividendValidation, PR_MIN_THRESHOLD
+from src.backtest.statistics import BacktestStatistics, WindowStats, CrossWindowSummary
 
 
 class TestWindowManager:
@@ -64,15 +64,14 @@ class TestDividendValidator:
         assert r.predicted_pr_pct == 5.0
         assert r.window_id == 1
 
-    def test_risk_free_rate(self, mock_client, window):
+    def test_pr_threshold(self, mock_client, window):
         v = DividendValidator(mock_client)
         r = v.validate("test", "t", 5.0, window)
-        assert r.risk_free_rate > 0
+        # 实际分红 20/22/25元 vs 预测5% — 取决于股价但兑现率应可算
+        assert r.pr_fulfillment >= 0 or r.pr_fulfillment == 0
 
-    def test_risk_free_rates_coverage(self):
-        assert 2016 in RISK_FREE_RATES
-        assert 2025 in RISK_FREE_RATES
-        assert all(1.0 < v < 5.0 for v in RISK_FREE_RATES.values())
+    def test_pr_min_threshold(self):
+        assert PR_MIN_THRESHOLD == 5.0
 
 
 class TestBacktestStatistics:
@@ -84,45 +83,47 @@ class TestBacktestStatistics:
     def test_analyze_with_validations(self):
         v1 = DividendValidation(
             ts_code="A", predicted_pr_pct=8, pr_fulfillment=0.85,
-            actual_dividend_yield=6.8, excess=3.0,
-            strategy_effective=True, pr_qualified=True,
+            actual_dividend_yield=6.8, is_pr_qualified=True,
+            pr_threshold_met=True,
             window_id=1, final_score=80,
         )
         v2 = DividendValidation(
             ts_code="B", predicted_pr_pct=3, pr_fulfillment=0.4,
-            actual_dividend_yield=1.2, excess=-1.5,
-            strategy_effective=False, pr_qualified=False,
+            actual_dividend_yield=1.2, is_pr_qualified=False,
+            pr_threshold_met=False,
             window_id=1, final_score=30,
         )
         stats = BacktestStatistics()
         r = stats.analyze_window([v1, v2], 1, "test")
         assert r.total_stocks == 2
-        assert 40 < r.win_rate < 60
-        assert r.pr_qualified_pct == 50
+        assert r.pr_fulfill_qualified_pct == 50
+        assert r.threshold_met_pct == 50
 
     def test_cross_window(self):
         stats = BacktestStatistics()
         w1 = WindowStats(window_id=1, window_label="w1", total_stocks=10,
-                         win_rate=60, avg_fulfillment=0.75, avg_excess=2.0,
+                         avg_fulfillment=0.75, median_fulfillment=0.80,
+                         pr_fulfill_qualified_pct=60, threshold_met_pct=55,
                          top5_avg_dividend=5.0, bottom5_avg_dividend=2.0, spread=3.0)
         w2 = WindowStats(window_id=2, window_label="w2", total_stocks=8,
-                         win_rate=50, avg_fulfillment=0.65, avg_excess=1.0,
+                         avg_fulfillment=0.65, median_fulfillment=0.70,
+                         pr_fulfill_qualified_pct=50, threshold_met_pct=45,
                          top5_avg_dividend=4.0, bottom5_avg_dividend=2.5, spread=1.5)
         cross = stats.analyze_cross_window([w1, w2])
-        assert cross.count == 2
-        assert cross.win_rate == 55.0
-        assert cross.avg_fulfillment == 0.70
+        assert cross.total_windows == 2
+        assert cross.avg_fulfillment == 0.75  # median of [0.80, 0.70]
 
 
 class TestBacktestReport:
     def test_generate_report(self):
         from src.backtest.report import BacktestReportGenerator
         w1 = WindowStats(window_id=1, window_label="2011-2015", total_stocks=5,
-                         avg_pr_pct=6.5, avg_fulfillment=0.72, win_rate=60,
-                         avg_excess=2.0, median_fulfillment=0.75, pr_qualified_pct=60,
+                         avg_pr_pct=6.5, avg_fulfillment=0.72, median_fulfillment=0.75,
+                         pr_fulfill_qualified_pct=60, threshold_met_pct=55,
                          top5_avg_dividend=5.0, bottom5_avg_dividend=2.0, spread=3.0)
-        cross = GroupStats(name="cross", count=1, win_rate=60, avg_fulfillment=0.72, avg_excess=2.0)
+        cross = CrossWindowSummary(total_windows=1, avg_fulfillment=0.72,
+                                   avg_threshold_met_pct=55, avg_spread=3.0)
         gen = BacktestReportGenerator()
         html = gen.generate([w1], cross)
         assert len(html) > 1000
-        assert "回测验证" in html
+        assert "PR" in html

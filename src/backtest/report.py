@@ -1,7 +1,6 @@
 """
 回测报告生成器 — HTML 报告。
-
-核心对比: 股息回报 vs 无风险利率
+核心对比: 实际股息回报 vs PR 三级阈值(12%/8%/5%)
 """
 
 from __future__ import annotations
@@ -10,7 +9,7 @@ from datetime import datetime
 
 from jinja2 import Environment, BaseLoader
 
-from src.backtest.statistics import WindowStats, GroupStats
+from src.backtest.statistics import WindowStats, CrossWindowSummary
 
 
 _BACKTEST_TEMPLATE = r"""<!DOCTYPE html>
@@ -38,35 +37,36 @@ _BACKTEST_TEMPLATE = r"""<!DOCTYPE html>
   .metric-val.red { color:var(--red); }
   .metric-val.yellow { color:var(--yellow); }
 
-  .bar-wrap { height:6px; background:var(--border); border-radius:3px; margin:4px 0; overflow:hidden; }
-  .bar-fill { height:100%; border-radius:3px; }
-  .bar-fill.green { background:var(--green); }
-
   table { width:100%; border-collapse:collapse; font-size:0.88rem; margin:16px 0; }
   th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--border); }
   th { color:var(--text-dim); font-weight:600; }
 
   .verdict { font-size:1.2rem; font-weight:700; padding:16px 0; }
+  .note { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:16px; margin:16px 0; font-size:0.9rem; color:var(--text-dim); line-height:1.6; }
   .footer { text-align:center; color:var(--text-dim); font-size:0.82rem; margin-top:48px; padding-top:24px; border-top:1px solid var(--border); }
 </style>
 </head>
 <body>
 <h1>龟龟策略 v0.15 — 回测验证报告</h1>
-<p class="subtitle">验证哲学: 只验分红，不碰股价 · 对比基准: 无风险利率(国债收益率)</p>
+<p class="subtitle">
+  验证逻辑: 实际分红 vs PR阈值(5%/8%/12%) · PR兑现率 ≥ 0.7 · 分组Top5 vs Bottom5股息差
+</p>
 
 <!-- ====== OVERVIEW ====== -->
 <div class="grid">
   <div class="card">
     <h3>回测总览</h3>
-    <div class="metric"><span>回测窗口数</span><span class="metric-val">{{ total_windows }}</span></div>
-    <div class="metric"><span>跨窗口平均 Win Rate</span><span class="metric-val {% if cross_window.win_rate>50 %}green{% else %}red{% endif %}">{{ "%.1f"|format(cross_window.win_rate) }}%</span></div>
-    <div class="metric"><span>跨窗口 PR 兑现率(中位数)</span><span class="metric-val {% if cross_window.avg_fulfillment>=0.7 %}green{% else %}yellow{% endif %}">{{ "%.2f"|format(cross_window.avg_fulfillment) }}</span></div>
+    <div class="metric"><span>回测窗口数</span><span class="metric-val">{{ cross.total_windows }}</span></div>
+    <div class="metric"><span>PR兑现率(跨窗口中位数)</span><span class="metric-val {% if cross.avg_fulfillment>=0.7 %}green{% else %}yellow{% endif %}">{{ "%.2f"|format(cross.avg_fulfillment) }}</span></div>
+    <div class="metric"><span>阈值达标率(实际≥5%)</span><span class="metric-val {% if cross.avg_threshold_met_pct>=50 %}green{% else %}yellow{% endif %}">{{ "%.0f"|format(cross.avg_threshold_met_pct) }}%</span></div>
+    <div class="metric"><span>分组Spread(Top5-Bottom5)</span><span class="metric-val {% if cross.avg_spread>0 %}green{% else %}yellow{% endif %}">{{ "%.1f"|format(cross.avg_spread) }}%</span></div>
   </div>
   <div class="card">
-    <h3>判定标准</h3>
-    <div class="metric"><span>PR 兑现率 ≥ 0.7</span><span class="metric-val green">PR 预测合格</span></div>
-    <div class="metric"><span>股息回报 &gt; 无风险利率</span><span class="metric-val green">策略有效</span></div>
-    <div class="metric"><span>Top5 - Bottom5 股息差 &gt; 0</span><span class="metric-val green">打分区分度</span></div>
+    <h3>PR 三级阈值</h3>
+    <div class="metric"><span>≥12% 优秀</span><span class="metric-val green">起点分 20</span></div>
+    <div class="metric"><span>≥8% 良好</span><span class="metric-val">起点分 15</span></div>
+    <div class="metric"><span>≥5% 及格 (最低门槛)</span><span class="metric-val yellow">起点分 10</span></div>
+    <div class="metric"><span>&lt;5% 不及格</span><span class="metric-val red">L4=0, 不进策略</span></div>
   </div>
 </div>
 
@@ -76,12 +76,12 @@ _BACKTEST_TEMPLATE = r"""<!DOCTYPE html>
   <tr>
     <th>窗口</th>
     <th>股票数</th>
-    <th>平均PR%</th>
+    <th>预测PR%</th>
     <th>PR兑现率</th>
-    <th>Win Rate</th>
-    <th>超额</th>
+    <th>兑现率≥0.7</th>
+    <th>实际≥5%</th>
     <th>Top5股息</th>
-    <th>Bottom5股息</th>
+    <th>Bot5股息</th>
     <th>Spread</th>
   </tr>
   {% for s in window_stats %}
@@ -90,27 +90,39 @@ _BACKTEST_TEMPLATE = r"""<!DOCTYPE html>
     <td>{{ s.total_stocks }}</td>
     <td>{{ "%.1f"|format(s.avg_pr_pct) }}%</td>
     <td><span style="color:{% if s.avg_fulfillment>=0.7 %}var(--green){% else %}var(--yellow){% endif %}">{{ "%.2f"|format(s.avg_fulfillment) }}</span></td>
-    <td><span style="color:{% if s.win_rate>=50 %}var(--green){% else %}var(--red){% endif %}">{{ "%.0f"|format(s.win_rate) }}%</span></td>
-    <td>{{ "%.1f"|format(s.avg_excess) }}%</td>
-    <td>{{ "%.2f"|format(s.top5_avg_dividend) }}%</td>
-    <td>{{ "%.2f"|format(s.bottom5_avg_dividend) }}%</td>
-    <td style="color:{% if s.spread>0 %}var(--green){% else %}var(--red){% endif %}">{{ "%.2f"|format(s.spread) }}%</td>
+    <td><span style="color:{% if s.pr_fulfill_qualified_pct>=50 %}var(--green){% else %}var(--yellow){% endif %}">{{ "%.0f"|format(s.pr_fulfill_qualified_pct) }}%</span></td>
+    <td><span style="color:{% if s.threshold_met_pct>=50 %}var(--green){% else %}var(--yellow){% endif %}">{{ "%.0f"|format(s.threshold_met_pct) }}%</span></td>
+    <td>{{ "%.1f"|format(s.top5_avg_dividend) }}%</td>
+    <td>{{ "%.1f"|format(s.bottom5_avg_dividend) }}%</td>
+    <td style="color:{% if s.spread>0 %}var(--green){% else %}var(--red){% endif %}">{{ "%.1f"|format(s.spread) }}%</td>
   </tr>
   {% endfor %}
 </table>
 
 <!-- ====== VERDICT ====== -->
-<div class="verdict" style="color:{% if cross_window.win_rate>50 %}var(--green){% else %}var(--yellow){% endif %}">
-  {% if cross_window.win_rate > 50 %}
-  ✅ 龟龟策略跨窗口验证: 策略有效
+<div class="verdict" style="color:{% if cross.avg_fulfillment>=0.7 %}var(--green){% else %}var(--yellow){% endif %}">
+  {% if cross.avg_fulfillment >= 0.7 %}
+  PR兑现率≥0.7: 穿透回报率能够有效预测实际分红
   {% else %}
-  ⚠ 龟龟策略跨窗口验证: 需进一步优化
+  PR兑现率<0.7: 穿透回报率预测与实际分红存在偏差
   {% endif %}
 </div>
 
+{% if cross.has_discrimination %}
+<div class="verdict" style="color:var(--green);">
+  打分区分度: 成立 — Top5股息持续高于Bottom5
+</div>
+{% endif %}
+
+<div class="note">
+  <strong>回测设计说明</strong><br>
+  验证逻辑: 以选股时的PR预测(T-5年财务数据)与T+1~T+N年实际每股分红对比。<br>
+  对比基准: PR三级阈值(5%/8%/12%) — 而非无风险利率或市场指数。<br>
+  核心问题: "PR≥5%地选出来的股票，后续实际分红是否真的≥5%？"
+</div>
+
 <div class="footer">
-  龟龟投资策略框架 v0.15 · 生成于 {{ generated_at }}<br>
-  验证哲学: 只验分红，不碰股价 · 对比基准: 中国10年期国债收益率
+  龟龟投资策略 v0.15 · 生成于 {{ generated_at }}
 </div>
 </body>
 </html>"""
@@ -122,19 +134,18 @@ class BacktestReportGenerator:
     def generate(
         self,
         window_stats: list[WindowStats],
-        cross_window: GroupStats,
+        cross: CrossWindowSummary,
     ) -> str:
         env = Environment(loader=BaseLoader())
         template = env.from_string(_BACKTEST_TEMPLATE)
         return template.render(
-            total_windows=len(window_stats),
             window_stats=window_stats,
-            cross_window=cross_window,
+            cross=cross,
             generated_at=datetime.now().strftime("%Y-%m-%d %H:%M"),
         )
 
-    def save(self, window_stats: list[WindowStats], cross_window: GroupStats, path: str) -> str:
-        html = self.generate(window_stats, cross_window)
+    def save(self, window_stats: list[WindowStats], cross: CrossWindowSummary, path: str) -> str:
+        html = self.generate(window_stats, cross)
         with open(path, "w", encoding="utf-8") as f:
             f.write(html)
         return html

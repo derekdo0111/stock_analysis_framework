@@ -3,7 +3,7 @@
 from src.backtest.window_manager import WindowManager, BacktestWindow, DEFAULT_WINDOWS
 from src.backtest.pipeline_runner import PipelineRunner, WindowResult
 from src.backtest.dividend_validator import DividendValidator, DividendValidation
-from src.backtest.statistics import BacktestStatistics, WindowStats, GroupStats
+from src.backtest.statistics import BacktestStatistics, WindowStats, CrossWindowSummary
 from src.backtest.report import BacktestReportGenerator
 
 __all__ = [
@@ -16,6 +16,6 @@ __all__ = [
     "DividendValidation",
     "BacktestStatistics",
     "WindowStats",
-    "GroupStats",
+    "CrossWindowSummary",
     "BacktestReportGenerator",
 ]
