@@ -4,7 +4,7 @@
 
 ### stock-analysis-framework (D:\project\stock-analysis-framework\)
 - 龟龟投资策略 v0.15，Python 3.9+ / Poetry / Pydantic v2 / Pandas / Tushare / Jinja2 / loguru / tenacity / openai+anthropic
-- 4阶段9todo开发，当前阶段五（回测验证）待开工
+- 5阶段全部完成，156测试/81%覆盖率，~6000行Python代码
 - GitHub: https://github.com/derekdo0111/stock_analysis_framework (main 分支)
 - 核心理念：确定性计算(Python)与智能判断(LLM)彻底分离
 - 所有规则存储在 YAML 中，代码不做硬编码阈值
