@@ -92,17 +92,17 @@
       <span>阶段一（地基）</span><span style="color:var(--green)">100%</span>
     </div>
     <div class="progress-bar"><div class="progress-fill green" style="width:100%"></div></div>
-    <div class="stat-row" style="margin-top:12px;"><span>已完成阶段</span><span class="stat-val green">1 / 5</span></div>
+    <div class="stat-row" style="margin-top:12px;"><span>已完成阶段</span><span class="stat-val green">3 / 5</span></div>
     <div class="stat-row"><span>总 TODO</span><span class="stat-val">9</span></div>
-    <div class="stat-row"><span>代码模块</span><span class="stat-val">6 / 21</span></div>
-    <div class="stat-row"><span>测试用例</span><span class="stat-val green">60 ✓</span></div>
+    <div class="stat-row"><span>代码模块</span><span class="stat-val">17 / 21</span></div>
+    <div class="stat-row"><span>测试用例</span><span class="stat-val green">79 ✓</span></div>
   </div>
 
   <div class="card">
     <h3>🎯 质量门禁</h3>
     <div class="gate pass"><span class="icon">✅</span> ruff lint — 零错误</div>
     <div class="gate pass"><span class="icon">✅</span> mypy strict — 通过</div>
-    <div class="gate pass"><span class="icon">✅</span> 单元测试 — 56/56 通过</div>
+    <div class="gate pass"><span class="icon">✅</span> 单元测试 — 79/79 通过</div>
     <div class="gate pass"><span class="icon">✅</span> 集成测试 — 4/4 通过（真实Token）</div>
     <div class="gate pass"><span class="icon">✅</span> YAML → Pydantic — 4/4 加载成功</div>
     <div class="gate pass"><span class="icon">✅</span> 跨字段一致性校验 — 4/4 通过</div>
@@ -112,11 +112,11 @@
   <div class="card">
     <h3>📈 代码统计</h3>
     <div class="stat-row"><span>src/rules/schemas.py</span><span class="stat-val">518 行</span></div>
-    <div class="stat-row"><span>src/data_fetcher/tushare_client.py</span><span class="stat-val">314 行</span></div>
-    <div class="stat-row"><span>src/data_pool/schema/models.py</span><span class="stat-val">305 行</span></div>
-    <div class="stat-row"><span>tests/unit/test_rules.py</span><span class="stat-val">198 行</span></div>
-    <div class="stat-row"><span>tests/unit/test_data_pool.py</span><span class="stat-val">248 行</span></div>
-    <div class="stat-row"><span>总计 Python 代码</span><span class="stat-val green">~2200 行</span></div>
+    <div class="stat-row"><span>src/calculator/ (4 files)</span><span class="stat-val">~770 行</span></div>
+    <div class="stat-row"><span>src/screener/ (3 files)</span><span class="stat-val">~405 行</span></div>
+    <div class="stat-row"><span>src/llm/ (4 files)</span><span class="stat-val">~560 行</span></div>
+    <div class="stat-row"><span>tests/ (7 files)</span><span class="stat-val">~1100 行</span></div>
+    <div class="stat-row"><span>总计 Python 代码</span><span class="stat-val green">~4900 行</span></div>
   </div>
 </div>
 
@@ -144,12 +144,12 @@
     <div class="phase-title"><span class="tag tag-done">DONE</span> 阶段二：确定性管线 — 选股→计算→打分</div>
     <div class="phase-desc">HardGate · L2 初筛 · 公司分类 · OE双路径 · 穿透回报率 · 安全边际仓位矩阵 · 乘法打分</div>
   </div>
-  <div class="phase">
-    <div class="phase-title"><span class="tag tag-pending">PENDING</span> 阶段三：LLM 智能层 — 双Agent分析+验证</div>
-    <div class="phase-desc">CFA分析Agent(三段式证据链) · CPA+CFE审计Agent(10项审计程序) · Jinja2报告生成</div>
+  <div class="phase done">
+    <div class="phase-title"><span class="tag tag-done">DONE</span> 阶段三：LLM 智能层 — 双Agent分析+验证</div>
+    <div class="phase-desc">DeepSeek/OpenAI/Anthropic客户端 · CFA分析Agent · CPA+CFE审计Agent · 协作编排 · Jinja2报告+CLI</div>
   </div>
-  <div class="phase">
-    <div class="phase-title"><span class="tag tag-pending">PENDING</span> 阶段四：质量加固</div>
+  <div class="phase active">
+    <div class="phase-title"><span class="tag tag-active">ACTIVE</span> 阶段四：质量加固</div>
     <div class="phase-desc">覆盖率 ≥80% · E2E测试 · CLI完善 · 文档同步 · 性能优化</div>
   </div>
   <div class="phase">
@@ -161,14 +161,12 @@
 <!-- ====== CURRENT SPRINT ====== -->
 <div class="grid">
   <div class="card">
-    <h3>🏃 当前冲刺：阶段一（地基）</h3>
-      <div class="stat-row"><span>✅ Pydantic v2 Schema</span><span class="tag tag-done">完成</span></div>
-    <div class="stat-row"><span>✅ YAML 加载器 + 校验</span><span class="tag tag-done">完成</span></div>
-    <div class="stat-row"><span>✅ Tushare 适配器(22接口)</span><span class="tag tag-done">完成</span></div>
-    <div class="stat-row"><span>✅ 19 Pydantic 数据模型</span><span class="tag tag-done">完成</span></div>
-    <div class="stat-row"><span>✅ 存储层(JSON+Parquet)</span><span class="tag tag-done">完成</span></div>
-    <div class="stat-row"><span>✅ Transformer + Validator</span><span class="tag tag-done">完成</span></div>
-    <div class="stat-row"><span>✅ CI (ruff+mypy+pytest)</span><span class="tag tag-done">完成</span></div>
+    <h3>🏃 已完成阶段总结</h3>
+    <div class="stat-row"><span>✅ 阶段一：地基 (7模块)</span><span class="tag tag-done">完成</span></div>
+    <div class="stat-row"><span>✅ 阶段二：确定性管线 (7模块)</span><span class="tag tag-done">完成</span></div>
+    <div class="stat-row"><span>✅ 阶段三：LLM智能层 (6模块)</span><span class="tag tag-done">完成</span></div>
+    <div class="stat-row"><span>⏳ 阶段四：质量加固</span><span class="tag tag-pending">待开始</span></div>
+    <div class="stat-row"><span>⏳ 阶段五：回测验证</span><span class="tag tag-pending">待开始</span></div>
   </div>
 
   <div class="card">
@@ -176,9 +174,11 @@
     <table>
       <tr><th>层级</th><th>文件</th><th>用例</th><th>状态</th></tr>
       <tr><td>单元</td><td>test_rules.py</td><td>20</td><td><span class="tag tag-done">✅</span></td></tr>
-      <tr><td>单元</td><td>test_data_schemas.py</td><td>—</td><td><span class="tag tag-pending">TODO</span></td></tr>
-      <tr><td>集成</td><td>test_full_pipeline.py</td><td>—</td><td><span class="tag tag-pending">阶段二</span></td></tr>
-      <tr><td>功能</td><td>test_e2e_report.py</td><td>—</td><td><span class="tag tag-pending">阶段四</span></td></tr>
+      <tr><td>单元</td><td>test_data_pool.py</td><td>36</td><td><span class="tag tag-done">✅</span></td></tr>
+      <tr><td>单元</td><td>test_screener.py</td><td>10</td><td><span class="tag tag-done">✅</span></td></tr>
+      <tr><td>单元</td><td>test_scoring.py</td><td>8</td><td><span class="tag tag-done">✅</span></td></tr>
+      <tr><td>单元</td><td>test_llm.py</td><td>5</td><td><span class="tag tag-done">✅</span></td></tr>
+      <tr><td>集成</td><td>test_e2e_data_pipeline.py</td><td>4</td><td><span class="tag tag-done">✅</span></td></tr>
     </table>
   </div>
 </div>
@@ -209,17 +209,16 @@
   <h3>🗂️ 项目结构（已实现模块）</h3>
   <table>
     <tr><th>路径</th><th>职责</th></tr>
-    <tr><td><code>src/rules/schemas.py</code></td><td>4 YAML → Pydantic v2 模型 + 4 model_validator</td></tr>
-    <tr><td><code>src/rules/loader.py</code></td><td>YAML 加载 → Pydantic 验证 → RuleSet</td></tr>
+    <tr><td><code>src/rules/schemas.py</code></td><td>4 YAML → Pydantic v2 + 4 model_validator</td></tr>
+    <tr><td><code>src/screener/ (3 files)</code></td><td>HardGate + L2初筛 + 公司5分类</td></tr>
+    <tr><td><code>src/calculator/turtle_strategy/ (4 files)</code></td><td>OE双路径 + PR + L5 + 乘法打分</td></tr>
+    <tr><td><code>src/llm/ (4 files)</code></td><td>DeepSeek/OpenAI/Anthropic + CFA分析 + CPA审计 + 编排</td></tr>
     <tr><td><code>src/data_fetcher/tushare_client.py</code></td><td>22 Tushare 接口 + 重试/限流</td></tr>
-    <tr><td><code>src/data_pool/schema/models.py</code></td><td>19 Pydantic 数据模型（双轨设计）</td></tr>
-    <tr><td><code>src/data_pool/storage/local_storage.py</code></td><td>JSON+Parquet 双格式存储</td></tr>
-    <tr><td><code>src/data_pool/validator/data_validator.py</code></td><td>DataFrame → Pydantic 批量验证</td></tr>
-    <tr><td><code>src/data_pool/transformer/tushare_transformer.py</code></td><td>Tushare 格式 → Pydantic 模型转换</td></tr>
+    <tr><td><code>src/data_pool/ (3 modules)</code></td><td>19 Schema + 存储 + 验证 + 转换</td></tr>
+    <tr><td><code>src/reporter/report_generator.py</code></td><td>Jinja2 自包含 HTML 报告</td></tr>
+    <tr><td><code>src/cli.py</code></td><td>stock-analyze 命令行入口</td></tr>
     <tr><td><code>.github/workflows/ci.yaml</code></td><td>CI: ruff → mypy → pytest(3.9+3.11)</td></tr>
-    <tr><td><code>tests/unit/test_rules.py</code></td><td>20 条测试：规则加载/校验/黄金样本</td></tr>
-    <tr><td><code>tests/unit/test_data_pool.py</code></td><td>36 条测试：Schemas/存储/验证器/StockProfile</td></tr>
-    <tr><td><code>tests/integration/test_e2e_data_pipeline.py</code></td><td>4 条集成测试：真实Token端到端验证</td></tr>
+    <tr><td><code>tests/ (7 files)</code></td><td>79/79 全量通过</td></tr>
   </table>
 </div>
 
