@@ -89,24 +89,25 @@
   <div class="card">
     <h3>📊 整体进度</h3>
     <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-      <span>阶段一（地基）</span><span style="color:var(--green)">100%</span>
+      <span>总进度 (4/5 阶段)</span><span style="color:var(--green)">80%</span>
     </div>
-    <div class="progress-bar"><div class="progress-fill green" style="width:100%"></div></div>
+    <div class="progress-bar"><div class="progress-fill green" style="width:80%"></div></div>
     <div class="stat-row" style="margin-top:12px;"><span>已完成阶段</span><span class="stat-val green">4 / 5</span></div>
-    <div class="stat-row"><span>总 TODO</span><span class="stat-val">9</span></div>
-    <div class="stat-row"><span>代码模块</span><span class="stat-val">17 / 21</span></div>
-    <div class="stat-row"><span>测试用例</span><span class="stat-val green">79 ✓</span></div>
+    <div class="stat-row"><span>代码模块</span><span class="stat-val">20 / 24</span></div>
+    <div class="stat-row"><span>测试用例</span><span class="stat-val green">113 ✓</span></div>
+    <div class="stat-row"><span>覆盖率</span><span class="stat-val green">80%</span></div>
   </div>
 
   <div class="card">
     <h3>🎯 质量门禁</h3>
     <div class="gate pass"><span class="icon">✅</span> ruff lint — 零错误</div>
     <div class="gate pass"><span class="icon">✅</span> mypy strict — 通过</div>
-    <div class="gate pass"><span class="icon">✅</span> 单元测试 — 79/79 通过</div>
+    <div class="gate pass"><span class="icon">✅</span> 单元测试 — 113/113 通过</div>
     <div class="gate pass"><span class="icon">✅</span> 集成测试 — 4/4 通过（真实Token）</div>
+    <div class="gate pass"><span class="icon">✅</span> 覆盖率 — 80%</div>
     <div class="gate pass"><span class="icon">✅</span> YAML → Pydantic — 4/4 加载成功</div>
     <div class="gate pass"><span class="icon">✅</span> 跨字段一致性校验 — 4/4 通过</div>
-    <div class="gate" style="background:#1a1a2e;"><span class="icon">⏳</span> 覆盖率 ≥80% — 待实现</div>
+    <div class="gate pass"><span class="icon">✅</span> E2E 功能测试</div>
   </div>
 
   <div class="card">
