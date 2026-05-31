@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>龟龟投资策略框架 — 项目管理看板 v0.15</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --yellow: #d2991d;
+    --red: #f85149;
+    --purple: #a371f7;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height:1.6; padding:24px; max-width:1400px; margin:0 auto; }
+  h1 { font-size:2rem; margin-bottom:8px; }
+  h1 .version { color:var(--accent); font-size:1.2rem; margin-left:8px; }
+  h2 { font-size:1.3rem; margin:24px 0 12px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+  .subtitle { color:var(--text-dim); margin-bottom:24px; }
+
+  /* Grid layout */
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-bottom:24px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:20px; }
+  .card h3 { font-size:1rem; margin-bottom:12px; color:var(--accent); }
+  .card.full { grid-column:1/-1; }
+
+  /* Progress bar */
+  .progress-bar { height:8px; background:var(--border); border-radius:4px; margin:8px 0; overflow:hidden; }
+  .progress-fill { height:100%; border-radius:4px; transition:width .5s; }
+  .progress-fill.green { background:var(--green); }
+  .progress-fill.yellow { background:var(--yellow); }
+  .progress-fill.purple { background:var(--purple); }
+
+  /* Status tags */
+  .tag { display:inline-block; padding:2px 8px; border-radius:12px; font-size:0.8rem; font-weight:600; }
+  .tag-done { background:#1a3a2a; color:var(--green); }
+  .tag-active { background:#3a2a0a; color:var(--yellow); }
+  .tag-pending { background:#1a1a2e; color:var(--text-dim); }
+
+  /* Stats */
+  .stat-row { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--border); font-size:0.9rem; }
+  .stat-row:last-child { border-bottom:none; }
+  .stat-val { font-weight:600; font-variant-numeric:tabular-nums; }
+  .stat-val.green { color:var(--green); }
+  .stat-val.yellow { color:var(--yellow); }
+  .stat-val.red { color:var(--red); }
+
+  /* Phase timeline */
+  .phase { padding:10px 0; border-left:2px solid var(--border); padding-left:16px; margin-left:8px; position:relative; }
+  .phase::before { content:''; position:absolute; left:-6px; top:14px; width:10px; height:10px; border-radius:50%; background:var(--border); }
+  .phase.done::before { background:var(--green); box-shadow:0 0 8px var(--green); }
+  .phase.active::before { background:var(--yellow); box-shadow:0 0 8px var(--yellow); animation:pulse 2s infinite; }
+  .phase .phase-title { font-weight:600; }
+  .phase .phase-desc { font-size:0.85rem; color:var(--text-dim); }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+
+  /* Quality gates */
+  .gate { display:flex; align-items:center; gap:8px; padding:6px 12px; border-radius:6px; margin:4px 0; font-size:0.9rem; }
+  .gate.pass { background:#1a3a2a; }
+  .gate .icon { font-size:1.1rem; }
+
+  /* Pipeline */
+  .pipeline { display:flex; gap:4px; flex-wrap:wrap; margin:12px 0; }
+  .pipe-step { flex:1; min-width:80px; text-align:center; padding:8px 4px; border-radius:6px; font-size:0.78rem; background:var(--border); }
+  .pipe-step.done { background:#1a3a2a; }
+  .pipe-step.active { background:#3a2a0a; }
+
+  /* Table */
+  table { width:100%; border-collapse:collapse; font-size:0.88rem; }
+  th, td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--border); }
+  th { color:var(--text-dim); font-weight:600; }
+
+  @media (max-width:768px) { .grid { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+
+<h1>🐢 龟龟投资策略框架 <span class="version">v0.15</span></h1>
+<p class="subtitle">确定性计算(Python)与智能判断(LLM)彻底分离 · 4阶段递进开发</p>
+
+<!-- ====== KEY METRICS ROW ====== -->
+<div class="grid">
+  <div class="card">
+    <h3>📊 整体进度</h3>
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+      <span>阶段一（地基）</span><span style="color:var(--green)">100%</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill green" style="width:100%"></div></div>
+    <div class="stat-row" style="margin-top:12px;"><span>已完成阶段</span><span class="stat-val green">1 / 5</span></div>
+    <div class="stat-row"><span>总 TODO</span><span class="stat-val">9</span></div>
+    <div class="stat-row"><span>代码模块</span><span class="stat-val">6 / 21</span></div>
+    <div class="stat-row"><span>测试用例</span><span class="stat-val green">60 ✓</span></div>
+  </div>
+
+  <div class="card">
+    <h3>🎯 质量门禁</h3>
+    <div class="gate pass"><span class="icon">✅</span> ruff lint — 零错误</div>
+    <div class="gate pass"><span class="icon">✅</span> mypy strict — 通过</div>
+    <div class="gate pass"><span class="icon">✅</span> 单元测试 — 56/56 通过</div>
+    <div class="gate pass"><span class="icon">✅</span> 集成测试 — 4/4 通过（真实Token）</div>
+    <div class="gate pass"><span class="icon">✅</span> YAML → Pydantic — 4/4 加载成功</div>
+    <div class="gate pass"><span class="icon">✅</span> 跨字段一致性校验 — 4/4 通过</div>
+    <div class="gate" style="background:#1a1a2e;"><span class="icon">⏳</span> 覆盖率 ≥80% — 待实现</div>
+  </div>
+
+  <div class="card">
+    <h3>📈 代码统计</h3>
+    <div class="stat-row"><span>src/rules/schemas.py</span><span class="stat-val">518 行</span></div>
+    <div class="stat-row"><span>src/data_fetcher/tushare_client.py</span><span class="stat-val">314 行</span></div>
+    <div class="stat-row"><span>src/data_pool/schema/models.py</span><span class="stat-val">305 行</span></div>
+    <div class="stat-row"><span>tests/unit/test_rules.py</span><span class="stat-val">198 行</span></div>
+    <div class="stat-row"><span>tests/unit/test_data_pool.py</span><span class="stat-val">248 行</span></div>
+    <div class="stat-row"><span>总计 Python 代码</span><span class="stat-val green">~2200 行</span></div>
+  </div>
+</div>
+
+<!-- ====== PHASE TIMELINE ====== -->
+<div class="card full">
+  <h3>🗓️ 五阶段路线图</h3>
+  <div class="phase done">
+    <div class="phase-title"><span class="tag tag-done">DONE</span> 阶段〇：项目骨架</div>
+    <div class="phase-desc">Poetry 环境 · 目录结构 · 4 YAML 规则文件 · 21 __init__.py · pyproject.toml</div>
+  </div>
+  <div class="phase done">
+    <div class="phase-title"><span class="tag tag-done">DONE</span> 阶段一：地基 — 规则引擎 + 数据层</div>
+    <div class="phase-desc">
+      <div class="pipeline">
+        <div class="pipe-step done">Pydantic Schema</div>
+        <div class="pipe-step done">YAML Loader</div>
+        <div class="pipe-step done">Tushare适配器</div>
+        <div class="pipe-step done">数据池Schemas</div>
+        <div class="pipe-step done">存储层</div>
+        <div class="pipe-step done">CI配置</div>
+      </div>
+    </div>
+  </div>
+  <div class="phase">
+    <div class="phase-title"><span class="tag tag-pending">PENDING</span> 阶段二：确定性管线 — 选股→计算→打分</div>
+    <div class="phase-desc">HardGate · L2 初筛 · 公司分类 · 双轨穿透回报率 · 安全边际仓位矩阵 · 乘法打分</div>
+  </div>
+  <div class="phase">
+    <div class="phase-title"><span class="tag tag-pending">PENDING</span> 阶段三：LLM 智能层 — 双Agent分析+验证</div>
+    <div class="phase-desc">CFA分析Agent(三段式证据链) · CPA+CFE审计Agent(10项审计程序) · Jinja2报告生成</div>
+  </div>
+  <div class="phase">
+    <div class="phase-title"><span class="tag tag-pending">PENDING</span> 阶段四：质量加固</div>
+    <div class="phase-desc">覆盖率 ≥80% · E2E测试 · CLI完善 · 文档同步 · 性能优化</div>
+  </div>
+  <div class="phase">
+    <div class="phase-title"><span class="tag tag-pending">PENDING</span> 阶段五：回测验证</div>
+    <div class="phase-desc">Walk-Forward窗口 · 分红兑现率 · 股息 vs 无风险利率 · 跨窗口汇总统计</div>
+  </div>
+</div>
+
+<!-- ====== CURRENT SPRINT ====== -->
+<div class="grid">
+  <div class="card">
+    <h3>🏃 当前冲刺：阶段一（地基）</h3>
+      <div class="stat-row"><span>✅ Pydantic v2 Schema</span><span class="tag tag-done">完成</span></div>
+    <div class="stat-row"><span>✅ YAML 加载器 + 校验</span><span class="tag tag-done">完成</span></div>
+    <div class="stat-row"><span>✅ Tushare 适配器(22接口)</span><span class="tag tag-done">完成</span></div>
+    <div class="stat-row"><span>✅ 19 Pydantic 数据模型</span><span class="tag tag-done">完成</span></div>
+    <div class="stat-row"><span>✅ 存储层(JSON+Parquet)</span><span class="tag tag-done">完成</span></div>
+    <div class="stat-row"><span>✅ Transformer + Validator</span><span class="tag tag-done">完成</span></div>
+    <div class="stat-row"><span>✅ CI (ruff+mypy+pytest)</span><span class="tag tag-done">完成</span></div>
+  </div>
+
+  <div class="card">
+    <h3>🧪 测试金字塔</h3>
+    <table>
+      <tr><th>层级</th><th>文件</th><th>用例</th><th>状态</th></tr>
+      <tr><td>单元</td><td>test_rules.py</td><td>20</td><td><span class="tag tag-done">✅</span></td></tr>
+      <tr><td>单元</td><td>test_data_schemas.py</td><td>—</td><td><span class="tag tag-pending">TODO</span></td></tr>
+      <tr><td>集成</td><td>test_full_pipeline.py</td><td>—</td><td><span class="tag tag-pending">阶段二</span></td></tr>
+      <tr><td>功能</td><td>test_e2e_report.py</td><td>—</td><td><span class="tag tag-pending">阶段四</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ====== DESIGN DECISIONS ====== -->
+<div class="card full">
+  <h3>📐 v0.15 关键设计决策（不可逆）</h3>
+  <div class="grid" style="margin-top:0;">
+    <div>
+      <div class="stat-row"><span>穿透回报率</span><span class="stat-val green">单轨统一精算</span></div>
+      <div class="stat-row"><span>OE 来源</span><span class="stat-val">现金流路径 5年中位数</span></div>
+      <div class="stat-row"><span>OE 双路径</span><span class="stat-val">B(主,PR) + A(辅,验证)</span></div>
+      <div class="stat-row"><span>HH 偏差</span><span class="stat-val red">取消 → CV替代</span></div>
+      <div class="stat-row"><span>OE 质量</span><span class="stat-val">三级前置标签 + 五级后验证</span></div>
+    </div>
+    <div>
+      <div class="stat-row"><span>L5 外推可行度</span><span class="stat-val">6维（新增OE增长趋势）</span></div>
+      <div class="stat-row"><span>价值陷阱</span><span class="stat-val">5项 + 负债子触发2项</span></div>
+      <div class="stat-row"><span>仓位矩阵</span><span class="stat-val">3×3 = 9 组合</span></div>
+      <div class="stat-row"><span>L3 乘数</span><span class="stat-val">×1.2 / ×1.0 / ×0.8 / reject</span></div>
+      <div class="stat-row"><span>回测</span><span class="stat-val">只验分红，不碰股价</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== FILE MAP ====== -->
+<div class="card full">
+  <h3>🗂️ 项目结构（已实现模块）</h3>
+  <table>
+    <tr><th>路径</th><th>职责</th></tr>
+    <tr><td><code>src/rules/schemas.py</code></td><td>4 YAML → Pydantic v2 模型 + 4 model_validator</td></tr>
+    <tr><td><code>src/rules/loader.py</code></td><td>YAML 加载 → Pydantic 验证 → RuleSet</td></tr>
+    <tr><td><code>src/data_fetcher/tushare_client.py</code></td><td>22 Tushare 接口 + 重试/限流</td></tr>
+    <tr><td><code>src/data_pool/schema/models.py</code></td><td>19 Pydantic 数据模型（双轨设计）</td></tr>
+    <tr><td><code>src/data_pool/storage/local_storage.py</code></td><td>JSON+Parquet 双格式存储</td></tr>
+    <tr><td><code>src/data_pool/validator/data_validator.py</code></td><td>DataFrame → Pydantic 批量验证</td></tr>
+    <tr><td><code>src/data_pool/transformer/tushare_transformer.py</code></td><td>Tushare 格式 → Pydantic 模型转换</td></tr>
+    <tr><td><code>.github/workflows/ci.yaml</code></td><td>CI: ruff → mypy → pytest(3.9+3.11)</td></tr>
+    <tr><td><code>tests/unit/test_rules.py</code></td><td>20 条测试：规则加载/校验/黄金样本</td></tr>
+    <tr><td><code>tests/unit/test_data_pool.py</code></td><td>36 条测试：Schemas/存储/验证器/StockProfile</td></tr>
+    <tr><td><code>tests/integration/test_e2e_data_pipeline.py</code></td><td>4 条集成测试：真实Token端到端验证</td></tr>
+  </table>
+</div>
+
+<p style="text-align:center;color:var(--text-dim);margin-top:32px;font-size:0.85rem;">
+  🐢 龟龟投资策略框架 v0.15 · Python 3.9+ · Poetry · Pydantic v2 · Tushare · 最后更新 2026-06-01
+</p>
+
+</body>
+</html>

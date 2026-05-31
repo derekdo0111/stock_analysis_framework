@@ -238,26 +238,26 @@ margin_of_safety:
 
   # 3.2 价值陷阱排查（5项+负债子项，每触发1项计1分，最多7分）
   value_trap_checks:
-    - id: 1
-      name: "盈利真实性"
-      trigger: "近3年中任一年 (经营现金流净额 / 净利润) < 0.6"
-    - id: 2
-      name: "资产质量"
-      trigger: "近3年应收账款增速 > 营收增速 × 1.5  或  存货增速 > 营收增速 × 1.3"
-    - id: 3
-      name: "负债压力"
-      trigger: "流动比率 < 1.0  或  速动比率 < 0.5"
-      # v0.15 新增子触发: 杠杆率维度
-      sub_triggers:
-        - { name: "高杠杆", trigger: "有息负债/EBITDA > 4", extra_count: 1 }
-        - { name: "利息覆盖不足", trigger: "EBIT/利息 < 3", extra_count: 1 }
-    - id: 4
-      name: "行业趋势"
-      trigger: "行业近3年营收复合增速 < (GDP增速 - 2%)"
-    - id: 5
-      name: "治理风险"
-      trigger: "大股东质押率 > 50%  或  关联交易/营收 > 30%"
-
+    items:
+      - id: 1
+        name: "盈利真实性"
+        trigger: "近3年中任一年 (经营现金流净额 / 净利润) < 0.6"
+      - id: 2
+        name: "资产质量"
+        trigger: "近3年应收账款增速 > 营收增速 × 1.5  或  存货增速 > 营收增速 × 1.3"
+      - id: 3
+        name: "负债压力"
+        trigger: "流动比率 < 1.0  或  速动比率 < 0.5"
+        # v0.15 新增子触发: 杠杆率维度
+        sub_triggers:
+          - { name: "高杠杆", trigger: "有息负债/EBITDA > 4", extra_count: 1 }
+          - { name: "利息覆盖不足", trigger: "EBIT/利息 < 3", extra_count: 1 }
+      - id: 4
+        name: "行业趋势"
+        trigger: "行业近3年营收复合增速 < (GDP增速 - 2%)"
+      - id: 5
+        name: "治理风险"
+        trigger: "大股东质押率 > 50%  或  关联交易/营收 > 30%"
     levels:
       low:   { max: 1,    label: "低风险" }
       medium: { min: 2,   max: 3,  label: "中风险" }
@@ -317,7 +317,7 @@ dividend:
     high:            { min: 50, warning: "需要验证可持续性，检查是否借钱分红" }
     normal:          { min: 30, max: 50 }
     low:             { min: 20, max: 30, action: "安全边际得分打7折" }
-    very_low:        { max: 20, action: "标记'低分红'，穿透回报率不适用股息模型" }
+    very_low:        { min: 0, max: 20, action: "标记'低分红'，穿透回报率不适用股息模型" }
 
   # 分红可持续性验证
   sustainability_checks:
