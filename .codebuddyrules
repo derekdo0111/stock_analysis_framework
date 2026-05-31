@@ -1,0 +1,23 @@
+# Stock Analysis Framework — CodeBuddy 项目规则
+
+## 技术约定
+- Python 3.9+, Poetry 包管理
+- Pydantic v2 数据模型，双轨Schema（核心字段 + RawTushareData）
+- loguru JSON 格式日志
+- tenacity 重试装饰器
+- 所有公共API必须有类型注解（mypy strict）
+
+## 文件命名
+- Python 模块: snake_case
+- 测试文件: test_<module>.py
+- YAML 规则: snake_case.yaml
+
+## 测试约定
+- pytest, 覆盖率目标 ≥80%
+- 单元测试放 tests/unit/, 集成测试放 tests/integration/
+- Mock Tushare 调用，不依赖真实API
+
+## 分阶段开发
+- 阶段一→阶段二→阶段三→阶段四 严格按序推进
+- 每阶段产出可测试最小单元
+- 确定性层（Python）与智能层（LLM）分离

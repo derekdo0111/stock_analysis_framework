@@ -1,0 +1,141 @@
+# L2 初筛评分规则 v0.14
+# 满分 20 分，≥12 候选池，8~11 观察池，<8 淘汰
+#
+# 管线流程:
+#   HardGate通过 → L2初筛打分 → 股票池分流 → 公司分类
+#   ├── STANDARD_CONSUMER  → 进入龟龟策略完整管线
+#   ├── HOLDING_COMPANY    → 进入SOTP管线
+#   ├── CYCLICAL           → 排除（不进入龟龟策略）
+#   ├── FINANCIAL          → 排除（不进入龟龟策略）
+#   └── GROWTH_NO_DIVIDEND → 排除（不进入龟龟策略）
+
+scoring:
+  # ===== 财务质量 (9pt) =====
+  financial_quality:
+    weight: 9
+    roe:
+      weight: 3
+      hard_gate: 5.0     # ROE<5% 直接淘汰
+      thresholds:
+        - {min: 20, score: 3}
+        - {min: 15, score: 2}
+        - {min: 10, score: 1}
+        - {min: 5, score: 0.5}
+        - {min: 0, score: 0}
+    gross_margin:
+      weight: 2
+      thresholds:
+        - {min: 40, score: 2}
+        - {min: 30, score: 1.5}
+        - {min: 20, score: 1}
+        - {min: 10, score: 0.5}
+        - {min: 0, score: 0}
+    debt_ratio:
+      weight: 2
+      thresholds:
+        - {min: 0, max: 30, score: 2}
+        - {min: 30, max: 50, score: 1.5}
+        - {min: 50, max: 70, score: 1}
+        - {min: 70, max: 80, score: 0.5}
+        - {min: 80, max: 100, score: 0}
+    operating_cf_to_net_profit:
+      weight: 2
+      thresholds:
+        - {min: 100, score: 2}
+        - {min: 80, score: 1.5}
+        - {min: 60, score: 1}
+        - {min: 40, score: 0.5}
+        - {min: 0, score: 0}
+
+  # ===== 估值合理性 (6pt) =====
+  valuation:
+    weight: 6
+    pe:
+      weight: 3
+      hard_gate: 0       # PE<0 直接淘汰
+      thresholds:
+        - {min: 0, max: 15, score: 3}
+        - {min: 15, max: 25, score: 2}
+        - {min: 25, max: 35, score: 1}
+        - {min: 35, max: 50, score: 0.5}
+        - {min: 50, max: 9999, score: 0}
+    pb:
+      weight: 2
+      thresholds:
+        - {min: 0, max: 2, score: 2}
+        - {min: 2, max: 4, score: 1.5}
+        - {min: 4, max: 6, score: 1}
+        - {min: 6, max: 10, score: 0.5}
+        - {min: 10, max: 9999, score: 0}
+    ps:
+      weight: 1
+      thresholds:
+        - {min: 0, max: 3, score: 1}
+        - {min: 3, max: 6, score: 0.5}
+        - {min: 6, max: 9999, score: 0}
+
+  # ===== 流动性健康 (3pt) =====
+  liquidity:
+    weight: 3
+    dividend_yield:
+      weight: 2
+      hard_gate: 0.01    # 股息率=0 直接淘汰
+      thresholds:
+        - {min: 3, score: 2}
+        - {min: 2, score: 1.5}
+        - {min: 1, score: 1}
+        - {min: 0.01, score: 0.5}
+    avg_turnover:
+      weight: 1
+      thresholds:
+        - {min: 3, score: 1}
+        - {min: 1, score: 0.5}
+        - {min: 0, score: 0}
+
+  # ===== 加分项 (2pt) =====
+  bonus:
+    weight: 2
+    hsgt:
+      weight: 1          # 沪深港通 +1
+    listing_over_10y:
+      weight: 1          # 上市>10年 +1
+
+# ===== 股票池阈值 =====
+pool_thresholds:
+  candidate: 12    # ≥12 进入候选池
+  watch: 8         # 8~11 观察池
+  # <8 淘汰
+
+# ===== 公司分类 — 策略分流 =====
+company_classifier:
+  # 仅以下两类进入龟龟策略完整管线
+  eligible_for_turtle:
+    - STANDARD_CONSUMER       # 消费/医药/公用事业 → 标准穿透回报率管线
+    - HOLDING_COMPANY         # 控股型 → SOTP管线
+
+  # 以下三类在分类阶段直接排除（标记但不丢弃，供对比参考）
+  excluded_from_turtle:
+    - CYCLICAL                 # 强周期
+    - FINANCIAL                # 金融类
+    - GROWTH_NO_DIVIDEND       # 成长不分配
+
+  # 分类依据
+  classification_rules:
+    # 按行业映射（基于申万一/二级行业）
+    industry_mapping:
+      consumer_staples: "STANDARD_CONSUMER"
+      consumer_discretionary: "STANDARD_CONSUMER"
+      healthcare: "STANDARD_CONSUMER"
+      utility: "STANDARD_CONSUMER"
+      # 特殊判断：控股型
+      # 如果(TradeableFinancialAssets + LongTermEquityInvest) / TotalAssets > 40% → HOLDING_COMPANY
+
+    # 按财务特征判断
+    financial_triggers:
+      cyclic:
+        - "近5年营收 std/mean > 0.3 且 毛利率 std > 10%"
+        - "或行业分类为: 钢铁/有色/化工/建材/采掘/航运"
+      financial_sector:
+        - "行业分类为: 银行/保险/证券/多元金融"
+      growth_no_div:
+        - "股息率=0 且 近5年营收 CAGR > 20%"

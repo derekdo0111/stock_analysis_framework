@@ -1,0 +1,49 @@
+# HardGate 一票否决规则 (龟龟因子一A)
+# 6项否决，任何一项触发则直接丢弃该股票
+# 仅使用3个轻量Tushare接口：fina_audit / stock_basic / daily_basic
+
+rules:
+  # 1. 审计意见异常
+  audit_opinion:
+    enabled: true
+    description: "审计意见非标准无保留意见则否决"
+    blacklist_opinions:
+      - "保留意见"
+      - "否定意见"
+      - "无法表示意见"
+      - "带强调事项段的无保留意见"
+
+  # 2. 频繁更换审计师
+  auditor_change:
+    enabled: true
+    description: "近3年更换审计师≥2次则否决"
+    lookback_years: 3
+    max_changes: 1  # >=2 次触发否决
+
+  # 3. 人工黑名单（看不懂）
+  manual_blacklist:
+    enabled: true
+    description: "人工标记的无法理解的公司"
+    ts_codes: []  # 例如: ["000001.SZ"]
+
+  # 4. 上市未满5年
+  listing_years:
+    enabled: true
+    description: "上市不足5个完整会计年度则否决"
+    min_years: 5
+
+  # 5. ST / *ST
+  st_flag:
+    enabled: true
+    description: "当前为ST或*ST则否决"
+    patterns:
+      - "ST"
+      - "*ST"
+
+  # 6. 短期暴涨暴跌
+  price_surge:
+    enabled: true
+    description: "近60个交易日涨幅>150%或跌幅<-60%则否决"
+    lookback_days: 60
+    upper_threshold: 1.50   # +150%
+    lower_threshold: -0.60  # -60%
