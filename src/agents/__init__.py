@@ -1,1 +1,1 @@
-"""LLM Agent 层 — Context + Coordinator + 分析/验证Agent"""
+"""Agent 层 — 双Agent分析验证 (引用 llm 模块)"""
