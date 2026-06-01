@@ -2,13 +2,31 @@
 
 ## Project Conventions
 
+### ⛔ 铁律：每次写新代码前必须先跑 traceability
+
+- **强制执行**：在写任何新代码之前，必须先运行 `python scripts/verify_traceability.py --only-failures`
+- **补齐优先**：如果存在 ❌ 缺失项或 ⚠️ 未连通项，必须先补坑再开新坑
+- **更新 TRACEABILITY.md**：如果新增了设计项，同步更新 `TRACEABILITY.md` 和 `scripts/verify_traceability.py` 中的 ITEMS 列表
+- **退出码**：0=全部通过/1=有MISS/2=有WARN/3=两者都有
+- 此规则于 2026-06-01 建立，因发现 data_pool 4个模块代码完整但零生产引用、screener/stock_pool.py 等 23 项缺失、11 项未连通，设计和实现之间存在严重断层
+
+### ⛔ 铁律：禁止编造任何数据
+- **绝对禁止**凭记忆/印象/猜测编造数值。任何数字必须来自以下三种来源之一：
+  1. 真实 API 调用结果（Tushare/Web等），且必须展示原始返回值
+  2. 用户直接提供的数值
+  3. 代码中的硬编码常量或 YAML 配置文件
+- 在给用户展示数据表格时，**必须先调用对应 API** 获取真实数据，不可用"假设"凑数
+- 如果 API 不可用，必须明确标注「此数据为估算/示例，非真实值」
+- 用户于 2026-06-01 发现 agent 在解释回测流程时编造了茅台分红数据（实际应调用 Tushare dividend 接口获取），此为严重错误，写入铁律防止再犯
+
 ### stock-analysis-framework (D:\project\stock-analysis-framework\)
-- 龟龟投资策略 v0.15，Python 3.9+ / Poetry / Pydantic v2 / Pandas / Tushare / Jinja2 / loguru / tenacity / openai+anthropic
-- 5阶段全部完成，156测试/81%覆盖率，~6000行Python代码
+- 龟龟投资策略 v0.19，Python 3.9+ / Poetry / Pydantic v2 / Pandas / Tushare / akshare / pdfplumber / Jinja2 / loguru / tenacity
+- 阶段一~五完成，162测试/80%+覆盖率
 - GitHub: https://github.com/derekdo0111/stock_analysis_framework (main 分支)
 - 核心理念：确定性计算(Python)与智能判断(LLM)彻底分离
 - 所有规则存储在 YAML 中，代码不做硬编码阈值
 - 数据双格式存储：JSON（可读调试）+ Parquet（高性能查询）
+- 数据源四层架构：Tushare(主) → akshare(备用) → Web+LLM提取(Layer3) → 年报PDF(降级)
 
 ### Projects Location
 - 所有项目统一放在 D:\project\ 下，不放在 C:\Users\harry\CodeBuddy\
@@ -18,6 +36,81 @@
 - 3规则YAML驱动（hard_gate / l2_screener / turtle_constants）
 - Agent约束：分析Agent(CFA)三段式证据链 + 验证Agent(CPA+CFE)10项审计程序
 - 报告增强：每个分析结论标注验证结果（🟢✓/🟡✗WARNING/🔴✗CRITICAL）
+
+## 方法论 v0.19 PR 公式第三次修正（2026-06-01）
+
+### PR = (可支配现金 × 分配比率 × 0.90 + 回购注销) / 当前市值
+
+**v0.18 问题**：分子仍是历史分红，不前瞻。
+
+**v0.19 修正**：
+- **分子**：可支配现金 × 分配比率 × (1-红利税10%) + 回购注销金额
+- **分母**：最新收盘总市值（`daily_basic.total_mv` 最新一条）
+
+### 分配比率两级降级
+| 优先级 | 来源 | 公式 |
+|---|---|---|
+| 一档 | 公告分红承诺（Web+LLM提取） | 承诺值 × 0.8（安全边际） |
+| 二档 | 历史外推 | 5年中位数(分红/可支配现金) × 0.7 |
+
+### OE 简化（v0.19）
+- **删除路径A**（利润表视角 OE_income）：数据不可靠（折旧用CAPEX×0.55估计）
+- **删除质量验证第5项**（利润→现金转化率）：输入不可靠则输出无意义
+- **质量验证从5级→4级**
+- **CAGR bug修复**：3个数据点→2个增长期间，`**(1/3)` → `**(1/2)`
+
+### 新增模块
+1. `src/data_fetcher/web_extractor.py` — Web+LLM 轻量提取（方案A，只做实体提取不做推理）
+2. `src/data_pool/schema/disposable_cash.py` — 可支配现金计算器
+3. `StockDataBundle` 新增3字段：`dividend_commitment`, `buyback_cancellation`, `restricted_cash`
+4. `DataPoolOrchestrator._fetch_all()` 新增 Layer 3（Web搜索+LLM提取）
+
+### 改动的文件
+- **新增**: `web_extractor.py`, `disposable_cash.py`
+- **重写**: `pr_calculator.py`（v0.19公式）
+- **删减**: `oe_calculator.py`（删除路径A+验证5）
+- **改造**: `bundle.py`, `orchestrator.py`, `scoring.py`, `cli.py`, `models.py`, `schemas.py`, `turtle_constants.yaml`
+- **导出更新**: `data_pool/__init__.py`, `data_fetcher/__init__.py`
+
+## 方法论 v0.18 关键设计决策（2026-06-01）
+
+### PR 公式第二次根性修正：分母从「市值」改为「可支配现金」
+
+**v0.17 公式**：`PR = (分红+回购) / 年末总市值` — 分母是市场定价，股价跌PR翻倍，本质是"市场先生的函数"
+
+**v0.18 公式**：`PR = (分红+回购) / 真实可支配现金` — 分母是公司口袋里真正能花的钱，衡量管理层的「资本配置纪律」
+
+```
+真实可支配现金 = 经营CF净额(n_cashflow_act)           # Tushare: cashflow
+               - 投资活动现金流出小计(stot_out_inv_act) # 所有投资支出全扣，成长性投入视为打水漂
+               - 财务费用(fin_expense)                  # Tushare: income
+               + 货币资金(money_cap)                    # Tushare: balancesheet
+               - 限制性货币                             # ❌ Tushare无 → PDF年报提取
+               - 短期借款(st_borr)                      # Tushare: balancesheet
+               + 交易性金融资产(trad_asset)              # 短期理财视为现金等价物
+```
+
+**关键设计决策**：
+- 不只用 CAPEX，而是减去所有投资活动现金流出（建厂+买设备+参股+并购），全部视为成长赌注
+- 短期理财：在"投资流出"扣掉，通过末尾"+交易性金融资产"加回 → 净效果为零
+- 参股/并购：进入长期股权投资，不被加回 → 永久扣掉
+- 限制性货币：Tushare/akshare 均无此字段 → 用 download-annual-report skill 从年报 PDF 提取
+- 时间错配：年初买年末到期的理财会被误扣（现金流全年累计 vs BS 年末快照），年末 money_cap 部分对冲
+
+### 数据源策略
+
+| 字段 | 主源 | 备用 |
+|------|------|------|
+| 经营CF/投资流出/CAPEX | Tushare cashflow | akshare |
+| 货币资金/交易性金融资产/短期借款 | Tushare balancesheet | **年报 PDF 提取** |
+| 财务费用 | Tushare income | akshare |
+| 限制性货币 | **年报 PDF 提取** | 估算(0~3%) |
+| 分红/回购 | Tushare dividend/repurchase | — |
+
+- Tushare 字段名注意：`trad_asset`(非 tradable_fin_assets), `st_borr`(非 st_borrow)
+- Tushare free tier 部分字段 NaN → PDF 降级
+- 茅台 2025 验证：交易性金融资产=0（财务公司债投到期收回），限制性货币=74亿（法定准备金）
+- CNINFO 巨潮资讯 API 已集成到 download-annual-report skill（SH 股票确认可用）
 
 ## 方法论 v0.15 关键设计决策（2026-06-01）
 
@@ -133,5 +226,40 @@ src/backtest/
 - 筛选器：src/screener/ (hard_gate.py, l2_screener.py, classifier.py, stock_pool.py)
 - 计算引擎：src/calculator/ (registry.py, turtle_strategy/, financial_ratios.py, scoring.py)
 - LLM Agent：src/agents/agents/ (analysis_agent.py, validate_agent.py)
-- 数据池：src/data_pool/ (schema.py 19模型, validator.py, storage.py, transformer.py)
+- 数据池：src/data_pool/ (schema.py 19模型, validator.py, storage.py, transformer.py, bundle.py)
+
+## 数据池架构改革（2026-06-01 强制执行）
+
+**原则**：只有 `DataPoolOrchestrator._fetch_all()` 有权直连 Tushare，其他所有模块只能从 `StockDataBundle` 读数据。
+
+**架构**：
+```
+CLI → DataPoolOrchestrator.snapshot_stock() → JSON/Parquet 缓存 → (唯一调用 Tushare 的入口)
+CLI → orchestrator.get_bundle() → StockDataBundle (纯读缓存)
+CLI → TurtleScorer(bundle) → 7 个子模块全部从 bundle 读
+```
+
+**改造的 11 个文件**：
+- 新增: `src/data_pool/bundle.py` (StockDataBundle dataclass)
+- 改造: `src/data_fetcher/orchestrator.py` (新增 get_bundle(), 修复 repurchase 拉取)
+- 改造: `src/screener/hard_gate.py`, `l2_screener.py`, `classifier.py`
+- 改造: `src/calculator/turtle_strategy/oe_calculator.py`, `pr_calculator.py`, `l5_calculator.py`, `scoring.py`
+- 改造: `src/cli.py`, `src/backtest/pipeline_runner.py`, `src/backtest/dividend_validator.py`
+- 改造: `src/data_pool/__init__.py` (导出 StockDataBundle)
+
+结果：追溯 21/21=100%连通，零 lint 错误，全部模块 import 通过。
 - 测试：tests/unit/, tests/integration/, tests/functional/
+
+## download-annual-report Skill（2026-06-01 升级）
+
+位置：`~/.codebuddy/skills/download-annual-report/`
+
+**三级降级链**：
+1. CNINFO 巨潮资讯 API（官方）→ SH 股票确认可用，SZ 股票 orgId 待确定
+2. 中商情报网 (s.askci.com) → 抓取 10jqka CDN 链接
+3. Xueqiu 雪球 → URL 猜测
+
+**CNINFO API 关键参数**：`column="szse"`, `plate="sse,sse"`, `category="category_ndbg_szsh;category_ndbg_sse"`
+- PDF URL 格式：`http://static.cninfo.com.cn/finalpage/{YYYY-MM-DD}/{id}.PDF`
+
+**PDF 解析**：pdfplumber 直接提取文本，搜索关键词（交易性金融资产、受限的货币资金等），用于填补 Tushare/akshare 的字段缺失

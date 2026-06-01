@@ -160,21 +160,12 @@ class L2ScreenerConfig(BaseModel):
 # 3. turtle_constants.yaml (the big one)
 # =============================================================================
 
-# --- 3a. OE dual-path ---
+# --- 3a. OE single-path (v0.19: 删除 income_path, dual_path_signal) ---
 
 class CashflowPath(BaseModel):
     formula: str
     role: str
-
-
-class IncomePath(BaseModel):
-    formula: str
-    role: str
-
-
-class DualPathSignal(BaseModel):
-    description: str
-    direction: dict[str, str]
+    # v0.19: 此字段可能为 None（仅文本说明）
 
 
 class IndustryPrior(BaseModel):
@@ -233,23 +224,22 @@ class QualityCheck(BaseModel):
 
 
 class QualityChecks(BaseModel):
+    """v0.19: 四级质量验证（删除 profit_to_cash_conversion）。"""
     oe_to_profit_ratio: QualityCheck
     oe_stability: QualityCheck
     oe_trend: QualityCheck
     bs_consistency: QualityCheck
-    profit_to_cash_conversion: QualityCheck
 
 
 class OwnersEarnings(BaseModel):
+    """v0.19: 单路径OE，删除 income_path 和 dual_path_signal。"""
     cashflow_path: CashflowPath
-    income_path: IncomePath
-    dual_path_signal: DualPathSignal
     maintenance_capex_coefficient: MaintenanceCapexCoefficient
     quality_label: QualityLabel
     quality_checks: QualityChecks
 
 
-# --- 3b. Penetration Return ---
+# --- 3b. Penetration Return (v0.19) ---
 
 class PRThreshold(BaseModel):
     min: float | None = None
@@ -259,9 +249,29 @@ class PRThreshold(BaseModel):
     action: str | None = None
 
 
+class DistributionRatioTier(BaseModel):
+    source: str = ""
+    formula: str = ""
+    search_keywords: list[str] = Field(default_factory=list)
+
+
+class DistributionRatioConfig(BaseModel):
+    tier1: DistributionRatioTier = Field(default_factory=DistributionRatioTier)
+    tier2: DistributionRatioTier = Field(default_factory=DistributionRatioTier)
+
+
+class BuybackConfig(BaseModel):
+    source: str = ""
+    filter: str = ""
+    search_keywords: list[str] = Field(default_factory=list)
+
+
 class PenetrationReturn(BaseModel):
+    """v0.19: PR = (可支配现金 × 分配比率 × (1-税) + 回购注销) / 当前市值。"""
     formula: str
-    oe_source: str
+    disposable_cash_formula: str = ""
+    distribution_ratio: DistributionRatioConfig = Field(default_factory=DistributionRatioConfig)
+    buyback: BuybackConfig = Field(default_factory=BuybackConfig)
     thresholds: list[PRThreshold]
     max_score: float = 40
     philosophy: str = ""

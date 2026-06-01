@@ -5,54 +5,35 @@ from datetime import date
 import pandas as pd
 import pytest
 
+from src.data_pool.bundle import StockDataBundle
+
 
 @pytest.fixture
-def mock_client():
-    c = MagicMock()
-    c.stock_basic.return_value = pd.DataFrame([{
-        "ts_code": "600519.SH", "name": "Test", "industry": "白酒",
-        "list_date": "20010827",
-    }])
-    c.fina_indicator.return_value = pd.DataFrame([{
-        "ts_code": "600519.SH", "roe": 30, "grossprofit_margin": 80,
-        "debt_to_assets": 20, "cf_sales": 0.5, "current_ratio": 2.0,
-        "quick_ratio": 1.5, "end_date": "20241231",
-    }])
-    c.daily_basic.return_value = pd.DataFrame([{
-        "ts_code": "600519.SH", "pe": 25, "pb": 5, "ps": 3,
-        "dv_ratio": 2.5, "turnover_rate": 3, "total_mv": 200000000,
-    }])
-    c.income.return_value = pd.DataFrame([
-        {"ts_code": "600519.SH", "end_date": f"202{d}1231", "total_revenue": 1500e8,
-         "n_income": 700e8, "total_profit": 900e8}
-        for d in range(4, -1, -1)
-    ])
-    c.cashflow.return_value = pd.DataFrame([
-        {"ts_code": "600519.SH", "end_date": f"202{d}1231", "n_cashflow_act": 800e8,
-         "c_pay_acq_const_fiolta": 30e8, "c_pay_dist_dpcp_int_exp": 50e8}
-        for d in range(4, -1, -1)
-    ])
-    c.balancesheet.return_value = pd.DataFrame([
-        {"ts_code": "600519.SH", "end_date": f"202{d}1231", "fix_assets": 200e8,
-         "money_cap": 500e8, "st_borrow": 0, "lt_borrow": 0, "bonds_payable": 0,
-         "accounts_receiv": 10e8, "inventories": 50e8,
-         "goodwill": 0, "intan_assets": 5e8,
-         "tradable_fin_assets": 0, "long_term_equity_invest": 0,
-         "total_assets": 2500e8, "total_liab": 500e8,
-         "total_hldr_eqy_exc_min_int": 2000e8}
-        for d in range(4, -1, -1)
-    ])
-    c.fina_audit.return_value = pd.DataFrame([{
-        "ts_code": "600519.SH", "audit_result": "标准无保留意见",
-        "audit_agency": "立信", "ann_date": "20250401",
-    }])
-    c.daily.return_value = pd.DataFrame([
-        {"trade_date": "20250101", "close": 100},
-        {"trade_date": "20250601", "close": 105},
-    ])
-    c.dividend.return_value = pd.DataFrame([{"end_date": "20241231", "cash_div": 25}])
-    c.pledge_stat.return_value = pd.DataFrame([{"pledge_ratio": 10}])
-    return c
+def mock_bundle(real_tushare_data):
+    """用真实 Tushare 数据快照构建 StockDataBundle (coverage push 用茅台)。"""
+    d = real_tushare_data["600519.SH"]
+    return StockDataBundle(
+        ts_code="600519.SH",
+        name="贵州茅台",
+        industry="白酒",
+        stock_basic=pd.DataFrame(d["stock_basic"]),
+        fina_indicator=pd.DataFrame(d["fina_indicator"]),
+        daily_basic=pd.DataFrame(d["daily_basic"]),
+        income=pd.DataFrame(d["income"]),
+        cashflow=pd.DataFrame(d["cashflow"]),
+        balancesheet=pd.DataFrame(d["balancesheet"]),
+        fina_audit=pd.DataFrame(d["fina_audit"]),
+        daily=pd.DataFrame(d["daily"]),
+        dividend=pd.DataFrame(d["dividend"]),
+        pledge_stat=pd.DataFrame(d["pledge_stat"]),
+        repurchase=pd.DataFrame(),
+    )
+
+
+@pytest.fixture
+def mock_client(mock_bundle):
+    """Backward compat: redirect mock_client to mock_bundle."""
+    return mock_bundle
 
 
 # === OE Calculator deep tests ===
@@ -75,12 +56,9 @@ class TestOECalculatorDeep:
         # CAGR calculated
         assert r.oe_cf_cagr_3y is not None
 
+    @pytest.mark.skip(reason="v0.19: profit_to_cash_conversion removed with path A deletion")
     def test_profit_to_cash_conversion(self, mock_client):
-        """Path A vs Path B ratio should be computed."""
-        from src.calculator.turtle_strategy.oe_calculator import OECalculator
-        oe = OECalculator(mock_client)
-        r = oe.calculate("600519.SH", "白酒")
-        assert r.profit_to_cash_conversion > 0 if r.oe_income_median > 0 else True
+        """[DEPRECATED v0.19] Path A vs Path B ratio removed."""
 
     def test_three_factor_asset_intensity(self, mock_client):
         """All three asset intensity factors should be evaluated."""

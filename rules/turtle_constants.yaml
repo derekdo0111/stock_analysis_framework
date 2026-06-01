@@ -1,38 +1,19 @@
-# 龟龟策略常量配置 v0.15
-# 包含：OE计算(双路径)、CAPEX系数(资产轻重评估)、穿透回报率(统一精算)、OE质量五级验证、安全边际仓位矩阵、价值陷阱、SOTP、税率等
+# 龟龟策略常量配置 v0.19
+# 包含：OE计算(单路径)、CAPEX系数(资产轻重评估)、穿透回报率(v0.19前瞻公式)、OE质量四级验证、安全边际仓位矩阵、价值陷阱、SOTP、税率等
 
 # =====================================================================
-# 一、Owners' Earnings — 双路径计算
+# 一、Owners' Earnings — 单路径计算 (v0.19: 删除路径A)
 # =====================================================================
 owners_earnings:
-  # ─── 路径 B（主路径）：现金流视角 OE ───
+  # ─── 路径 B（唯一路径）：现金流视角 OE ───
   # OE_cf = 经营性现金流净额 - 总CAPEX × 维持性CAPEX系数
-  # 这是穿透回报率的主 OE 来源，取5年中位数参与 PR 计算
   cashflow_path:
     formula: "net_operating_cf - (purchase_fixed_assets * maintenance_coefficient)"
-    role: "PR计算的主OE来源，取5年中位数"
-
-  # ─── 路径 A（辅助路径）：利润表视角 OE ───
-  # OE_income = 净利润 + 折旧摊销 + 资产减值损失 + 长期待摊费用摊销 - 维持性CAPEX
-  # 不参与 PR 计算，仅作为 OE 质量验证的对照输入（利润→现金转化率维度）
-  income_path:
-    formula: "net_profit + depreciation_amortization + asset_impairment + long_term_prepaid_expense_amortization - (purchase_fixed_assets * maintenance_coefficient)"
-    role: "OE质量验证的对照输入，不参与PR计算"
-
-  # ─── 双路径差异信号 ───
-  # 差异 = OE_income - OE_cf = 营运资本变动（取反）
-  # A ≫ B: 利润表好看但钱没收回来 → 盈利质量差
-  # B ≫ A: 现金流远好于利润表 → 盈利质量好，隐藏价值
-  dual_path_signal:
-    description: "路径A vs 路径B的差异用于OE质量验证的'利润→现金转化率'维度"
-    direction:
-      income_much_larger: "利润表好看但钱没收回来（应收暴增/存货积压）→ 盈利质量差"
-      cf_much_larger: "现金流远好于利润表（回款/消化库存/预收款）→ 隐藏价值"
+    role: "OE质量验证的输入，取5年中位数"
 
   # --------------------
   # 维持性CAPEX系数 — 资产轻重三因子评估法
   # 最终系数 = 行业先验 × 0.4 + 资产轻重得分 × 0.6
-  # 两条路径共用同一系数
   # --------------------
   maintenance_capex_coefficient:
     prior_weight: 0.4
@@ -96,7 +77,8 @@ owners_earnings:
       action: "不使用 PR，L4 = 0，由 Agent 另行定性评估"
 
   # --------------------
-  # OE 质量五级验证（在 PR 得分计算后扣分）
+  # OE 质量四级验证（在 PR 得分计算后扣分）
+  # v0.19: 删除 profit_to_cash_conversion（路径A已删）
   # --------------------
   quality_checks:
     oe_to_profit_ratio:
@@ -129,22 +111,31 @@ owners_earnings:
         不可解释差异 = 累积OE_5年 - 净现金变化_5年 - 分红总额 - 回购总额
         如果 不可解释差异 / 累积OE_5年 > 30% → 扣3分（现金去向不明）
 
-    profit_to_cash_conversion:
-      description: "利润→现金转化率 = OE_cf / OE_income (5年中位数) — 检验利润有多少变成现金"
-      thresholds:
-        - { min: 1.0,  penalty: 0 }                             # 现金流 ≥ 利润表，盈利质量好
-        - { min: 0.7,  max: 1.0, penalty: 1 }                   # 有部分利润没变成现金
-        - { min: 0.5,  max: 0.7, penalty: 3 }                   # 近一半利润是纸面富贵
-        - { max: 0.5,  penalty: 0, action: "降级为🔴不可靠标签" } # 触发OE质量标签降级
-
 # =====================================================================
-# 二、穿透回报率 — 统一精算（单轨）
+# 二、穿透回报率 — v0.19 前瞻公式
 # =====================================================================
 penetration_return:
-  # PR = OE_cf_median(5年) / 当前总市值
-  # 统一使用现金流路径 OE 的 5 年中位数，取消粗算/精算双轨和 HH 偏差
-  formula: "OE_cf_median_5yr / market_cap"
-  oe_source: "OE_cf（现金流路径），取 5 年中位数"
+  # PR = (当前可支配现金 × 分配比率 × 0.90 + 回购注销金额) / 最新收盘总市值
+  formula: "(disposable_cash × distribution_ratio × (1 - dividend_tax) + buyback_cancellation) / latest_market_cap"
+  
+  # 可支配现金公式
+  disposable_cash_formula: "经营CF净额 - 投资活动现金流出小计 - 财务费用 + 货币资金 - 限制性货币 - 短期借款 + 交易性金融资产"
+  
+  # 分配比率
+  distribution_ratio:
+    tier1:
+      source: "公告分红承诺"
+      formula: "承诺值 × 0.8"
+      search_keywords: ["分红承诺", "股东回报规划", "未来三年股东分红回报规划"]
+    tier2:
+      source: "历史线性外推"
+      formula: "5年中位数(年度分红总额 / 年度可支配现金) × 0.7"
+  
+  # 回购
+  buyback:
+    source: "Web搜索+LLM提取 + Tushare降级"
+    filter: "仅确认用于注销的回购"
+    search_keywords: ["回购注销", "回购股份注销", "减少注册资本"]
 
   # 三级阈值起点分
   thresholds:
@@ -160,7 +151,8 @@ penetration_return:
   # 设计哲学说明
   philosophy: |
     穿透回报率回答的核心问题：「以当前市值买入，当前经营能力带来的回报率是多少？」
-    这是一个静态快照——它的价值恰恰在于不依赖任何对未来增长的假设。
+    v0.19 将分母从历史市值改为当前市值，分子从历史分红改为前瞻可支配现金×分配比率。
+    这是一个前瞻估值——不依赖未来增长假设，衡量的是管理层资本配置纪律。
     增长维度交给 L5 安全边际的「外推可行度」处理，不污染 PR 本身的纯粹性。
 
 # =====================================================================

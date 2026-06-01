@@ -1,8 +1,8 @@
 """
-OE 双路径计算 + 维持性CAPEX系数 + 五级质量验证。
+OE 单路径计算 + 维持性CAPEX系数 + 四级质量验证。
 
-路径B(主): OE_cf = 经营CF净额 - 总CAPEX × 维持性CAPEX系数 → PR计算
-路径A(辅): OE_income = 净利润 + 折旧摊销 + 减值损失 + 待摊 - 维持CAPEX → 质量验证
+路径B: OE_cf = 经营CF净额 - 总CAPEX × 维持性CAPEX系数 → 供OE质量验证
+v0.19: 删除路径A（数据不可靠），质量验证从5级→4级。
 """
 
 from __future__ import annotations
@@ -13,13 +13,14 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 
-from src.data_fetcher.tushare_client import TushareClient
+from src.data_pool.bundle import StockDataBundle
 from src.rules.loader import load_rules
 
 
 @dataclass
 class OECalculationResult:
-    """OE 计算结果。"""
+    """OE 计算结果 — v0.19: 只保留路径B，删路径A。"""
+
     ts_code: str
     maintenance_coefficient: float = 0.60
 
@@ -30,10 +31,6 @@ class OECalculationResult:
     oe_cf_std: float = 0.0
     oe_cf_cv: float = 0.0  # 变异系数
     oe_cf_cagr_3y: float = 0.0
-
-    # 路径A — 利润表路径
-    oe_income_values: list[float] = field(default_factory=list)
-    oe_income_median: float = 0.0
 
     # 行业先验
     industry_prior: float = 0.60
@@ -46,7 +43,6 @@ class OECalculationResult:
 
     # 质量验证
     oe_to_profit_ratio: float = 0.0
-    profit_to_cash_conversion: float = 0.0
     bs_unexplained_diff_pct: float = 0.0
 
     # 标签
@@ -55,18 +51,18 @@ class OECalculationResult:
 
 
 class OECalculator:
-    """OE 双路径计算器。
+    """OE 计算器 — v0.19 单路径。
 
     步骤:
     1. 确定维持性CAPEX系数（行业先验×0.4 + 资产轻重×0.6）
     2. 计算路径B OE_cf（5年）
-    3. 计算路径A OE_income（5年）
-    4. 五级质量验证
-    5. 输出 OE 质量标签
+    3. 四级质量验证（删除利润→现金转化率）
+    4. 输出 OE 质量标签
+    所有数据从 StockDataBundle 读取。
     """
 
-    def __init__(self, client: TushareClient):
-        self._client = client
+    def __init__(self, bundle: StockDataBundle):
+        self._bundle = bundle
         self._rules = load_rules()
         self._tc = self._rules.turtle_constants
         self._oe_cfg = self._tc.owners_earnings
@@ -80,13 +76,10 @@ class OECalculator:
         # Step 2: 路径B — OE_cf (5年)
         self._calc_oe_path_b(ts_code, result)
 
-        # Step 3: 路径A — OE_income (5年)
-        self._calc_oe_path_a(ts_code, result)
-
-        # Step 4: 五级质量验证
+        # Step 3: 四级质量验证
         self._run_quality_checks(result)
 
-        # Step 5: 质量标签
+        # Step 4: 质量标签
         self._assign_quality_label(result)
 
         return result
@@ -177,9 +170,11 @@ class OECalculator:
     def _calc_oe_path_b(self, ts_code: str, result: OECalculationResult) -> None:
         """路径B: OE_cf = 经营CF净额 - 总CAPEX × 维持性CAPEX系数"""
         try:
-            df = self._client.cashflow(ts_code=ts_code)
+            df = self._bundle.cashflow
             if len(df) < 2:
                 return
+            # 只取年末数据（end_date=YYYY1231），过滤季报
+            df = df[df["end_date"].astype(str).str.endswith("1231")]
             df = df.sort_values("end_date", ascending=False).head(5)
             values = []
             for _, row in df.iterrows():
@@ -195,54 +190,24 @@ class OECalculator:
                 result.oe_cf_std = float(np.std(values))
                 if result.oe_cf_mean != 0:
                     result.oe_cf_cv = abs(result.oe_cf_std / result.oe_cf_mean)
-                # 近3年CAGR
+                # 近3年CAGR — 仅当首尾同号时计算，否则留0（质量验证会扣分）
+                # v0.19 fix: 3个数据点→2个增长期间，应**(1/2)
                 if len(values) >= 3:
                     recent = values[:3]
-                    if recent[-1] and recent[-1] != 0:
-                        result.oe_cf_cagr_3y = (recent[0] / recent[-1]) ** (1 / 3) - 1
-        except Exception:
-            pass
-
-    def _calc_oe_path_a(self, ts_code: str, result: OECalculationResult) -> None:
-        """路径A: OE_income = 净利润 + 折旧摊销 + 减值损失 + 待摊 - 维持CAPEX"""
-        try:
-            df = self._client.income(ts_code=ts_code)
-            if len(df) < 2:
-                return
-            df = df.sort_values("end_date", ascending=False).head(5)
-            # 取CAPEX用于维持CAPEX计算
-            capex_df = self._client.cashflow(ts_code=ts_code)
-            capex_df = capex_df.sort_values("end_date", ascending=False).head(5)
-            capex_map = {}
-            for _, r in capex_df.iterrows():
-                capex_map[str(r.get("end_date", ""))] = r.get("c_pay_acq_const_fiolta") or 0
-
-            values = []
-            for _, row in df.iterrows():
-                ni = row.get("n_income") or 0
-                # 折旧摊销/减值/待摊在Tushare income表中不直接提供
-                # 用总资产×(dep/rev)%粗略估计
-                da = (row.get("total_revenue") or 0) * result.depreciation_to_revenue_pct / 100 if result.depreciation_to_revenue_pct > 0 else 0
-                ai = row.get("asset_impairment_loss") or 0
-                ltpe = row.get("lt_amort_expense") or 0
-                ed = str(row.get("end_date", ""))
-                capex = capex_map.get(ed, 0)
-                oe = ni + da + ai + ltpe - capex * result.maintenance_coefficient
-                values.append(oe)
-            result.oe_income_values = values
-            if values:
-                result.oe_income_median = float(np.median(values))
+                    first, last = recent[0], recent[-1]
+                    if last and last != 0 and first * last > 0:
+                        result.oe_cf_cagr_3y = (first / last) ** (1 / 2) - 1
         except Exception:
             pass
 
     def _run_quality_checks(self, result: OECalculationResult) -> None:
-        """五级质量验证。"""
+        """四级质量验证 (v0.19: 删除利润→现金转化率)。"""
         qc = self._oe_cfg.quality_checks
         total_penalty = 0
 
         # 1. OE_cf/净利润
         try:
-            df = self._client.income(ts_code=result.ts_code)
+            df = self._bundle.income
             df = df.sort_values("end_date", ascending=False).head(5)
             profits = [float(r.get("n_income") or 0) for _, r in df.iterrows()]
             if profits and result.oe_cf_values:
@@ -279,7 +244,7 @@ class OECalculator:
 
         # 4. 资产负债表现金一致性 (BS Consistency)
         try:
-            df_bs = self._client.balancesheet(ts_code=result.ts_code).sort_values("end_date", ascending=False)
+            df_bs = self._bundle.balancesheet.sort_values("end_date", ascending=False)
             if len(df_bs) >= 5:
                 bs_now = df_bs.iloc[0]
                 bs_5y_ago = df_bs.iloc[-1]
@@ -297,20 +262,6 @@ class OECalculator:
                         total_penalty += qc.bs_consistency.penalty or 3
         except Exception:
             pass
-
-        # 5. 利润→现金转化率
-        if result.oe_income_median and result.oe_income_median != 0 and result.oe_cf_median:
-            result.profit_to_cash_conversion = result.oe_cf_median / result.oe_income_median
-            for t in qc.profit_to_cash_conversion.thresholds:
-                min_v, max_v = t.min, t.max
-                penalty = t.score or 0
-                action = getattr(t, "action", "")
-                if (min_v is None or result.profit_to_cash_conversion >= min_v) and \
-                   (max_v is None or result.profit_to_cash_conversion < max_v):
-                    total_penalty += penalty
-                    if "降级" in (action or ""):
-                        total_penalty += 0  # 标签降级在 _assign_quality_label 中处理
-                    break
 
         result.quality_penalty_total = int(total_penalty)
 
@@ -331,21 +282,27 @@ class OECalculator:
 
     def _get_5y_revenue(self, ts_code: str) -> list[float]:
         try:
-            df = self._client.income(ts_code=ts_code).sort_values("end_date", ascending=False).head(5)
+            df = self._bundle.income
+            df = df[df["end_date"].astype(str).str.endswith("1231")]
+            df = df.sort_values("end_date", ascending=False).head(5)
             return [float(r.get("total_revenue") or 0) for _, r in df.iterrows()]
         except Exception:
             return []
 
     def _get_5y_capex(self, ts_code: str) -> list[float]:
         try:
-            df = self._client.cashflow(ts_code=ts_code).sort_values("end_date", ascending=False).head(5)
+            df = self._bundle.cashflow
+            df = df[df["end_date"].astype(str).str.endswith("1231")]
+            df = df.sort_values("end_date", ascending=False).head(5)
             return [float(r.get("c_pay_acq_const_fiolta") or 0) for _, r in df.iterrows()]
         except Exception:
             return []
 
     def _get_5y_fixed_assets(self, ts_code: str) -> list[float]:
         try:
-            df = self._client.balancesheet(ts_code=ts_code).sort_values("end_date", ascending=False).head(5)
+            df = self._bundle.balancesheet
+            df = df[df["end_date"].astype(str).str.endswith("1231")]
+            df = df.sort_values("end_date", ascending=False).head(5)
             return [float(r.get("fix_assets") or 0) for _, r in df.iterrows()]
         except Exception:
             return []

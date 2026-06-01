@@ -105,10 +105,7 @@ class IncomeStatement(BaseModel):
     n_income_attr_p: float | None = Field(default=None, description="归母净利润")
     basic_eps: float | None = None
     diluted_eps: float | None = None
-    # 用于 OE 路径A 的字段
-    depreciation_amortization: float | None = Field(default=None, description="折旧摊销 (需要从附注推算)")
-    asset_impairment: float | None = None  # 资产减值损失
-    long_term_prepaid_expense_amort: float | None = None  # 长期待摊费用摊销
+    fin_expense: float | None = None  # 财务费用
     raw_tushare_data: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -125,6 +122,7 @@ class CashFlowStatement(BaseModel):
     c_pay_dist_dpcp_int_exp: float | None = Field(default=None, description="分配股利/偿付利息支付的现金")
     st_cash_out_act: float | None = None  # 经营活动现金流出小计
     st_cash_in_act: float | None = None  # 经营活动现金流入小计
+    stot_out_inv_act: float | None = None  # v0.19: 投资活动现金流出小计
     raw_tushare_data: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -231,9 +229,8 @@ class StockProfile(BaseModel):
     dividend_yield: float | None = None
     avg_turnover: float | None = None
 
-    # OE 计算相关（5年历史数据）
+    # OE 计算相关（5年历史数据）— v0.19: 只保留路径B
     oe_cf_history: list[float] = Field(default_factory=list)  # 每年 OE_cf
-    oe_income_history: list[float] = Field(default_factory=list)  # 每年 OE_income
     oe_cf_median_5y: float | None = None
     oe_cf_cv: float | None = None  # OE_cf 变异系数
     oe_cf_cagr_3y: float | None = None  # 近3年CAGR
@@ -290,7 +287,7 @@ class OEPathBResult(BaseModel):
 
 
 class OEPathAResult(BaseModel):
-    """OE 路径A（利润表视角）计算结果 — 仅用于OE质量验证。"""
+    """[DEPRECATED v0.19] OE 路径A（利润表视角）计算结果 — 已从主流程中删除。"""
     ts_code: str
     oe_income_values: list[float] = Field(default_factory=list, description="过去5年每年 OE_income 值")
     oe_income_median: float | None = None
@@ -307,16 +304,19 @@ class OEQualityLabel(BaseModel):
 
 
 class PenetrationReturnResult(BaseModel):
-    """穿透回报率计算结果。"""
+    """穿透回报率计算结果 — v0.19: PR = (可支配现金 × 分配比率 × 0.9 + 回购注销) / 当前市值。"""
     ts_code: str
-    oe_cf_median: float
-    market_cap: float = Field(..., description="当前总市值(亿元)")
-    pr_raw: float = Field(..., description="PR = OE_cf_median / MarketCap")
-    pr_pct: float = Field(..., description="PR × 100 (%)")
+    oe_cf_median: float = 0.0
+    pr_pct: float = Field(default=0.0, description="PR (%)")
+    disposable_cash: float = Field(default=0.0, description="当前可支配现金(万元)")
+    distribution_ratio: float = Field(default=0.0, description="分配比率(%)")
+    distribution_source: str = Field(default="", description="tier1_commitment | tier2_extrapolation")
+    buyback_cancellation: float = Field(default=0.0, description="回购注销金额(万元)")
+    current_market_cap: float = Field(default=0.0, description="最新总市值(万元)")
     quality_label: Literal["🟢 可信", "🟡 存疑", "🔴 不可靠"] = Field(default="🟢 可信")
     quality_penalties: dict[str, float] = Field(default_factory=dict)
-    l4_starting_score: float = Field(..., description="PR 起点分 (20/15/10/0)")
-    l4_score: float = Field(..., description="L4 最终得分 (起点分 - 质量扣分)")
+    l4_starting_score: float = Field(default=0.0, description="PR 起点分 (20/15/10/0)")
+    l4_score: float = Field(default=0.0, description="L4 最终得分 (起点分 - 质量扣分)")
     is_valid: bool = Field(default=True, description="OE 可靠则有效计算，不可靠则 L4=0")
 
 

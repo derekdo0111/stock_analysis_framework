@@ -60,11 +60,11 @@ class TestAllYAMLLoad:
 
     def test_turtle_constants_loaded(self, rules: RuleSet):
         tc = rules.turtle_constants
-        # OE dual path
+        # OE single path (v0.19)
         assert "net_operating_cf" in tc.owners_earnings.cashflow_path.formula
-        assert tc.owners_earnings.income_path.role == "OE质量验证的对照输入，不参与PR计算"
-        # PR
-        assert tc.penetration_return.oe_source == "OE_cf（现金流路径），取 5 年中位数"
+        # PR (v0.19)
+        assert "disposable_cash" in tc.penetration_return.formula
+        assert "distribution_ratio" in tc.penetration_return.formula
         assert len(tc.penetration_return.thresholds) == 4
         # Scoring
         assert tc.scoring.formula == "Final = (L2_20pt + L4_40pt + L5_25pt) × L3_multiplier"
