@@ -1,5 +1,34 @@
 # Changelog
 
+## [v0.19] - 2026-06-01 — PR 公式第三次修正：前瞻性穿透回报率
+
+### Added
+- **可支配现金计算器** (`disposable_cash.py`): 经营CF - 投资流出 - 财务费用 + 货币资金 - 限制性货币 - 短期借款 + 交易性金融资产
+- **Web+LLM 轻量提取器** (`web_extractor.py`): Layer 3 数据源，提取分红承诺和回购注销公告
+- `DataPoolOrchestrator._fetch_web_extractions()`: 数据获取阶段新 Layer，提取结果写入 StockDataBundle
+- `StockDataBundle` 新增 3 字段: `dividend_commitment`, `buyback_cancellation`, `restricted_cash`
+
+### Changed
+- **PR 公式根性重写**: `(可支配现金 × 分配比率 × 0.90 + 回购注销) / 当前市值`
+  - 分母从历史市值改为当前市值（前瞻性估值）
+  - 分子从历史分红改为可支配现金 × 分配比率
+  - 分配比率两级降级: 公告承诺×0.8 / 历史外推×0.7
+  - 回购注销 Web+LLM 提取，只算确认注销的部分
+- `pr_calculator.py` 完全重写: 移除 PRYearDetail/逐年计算，使用 v0.19 前瞻公式
+- `oe_calculator.py` 简化: 删除路径A（OE_income）+ 质量验证 5→4 级
+
+### Removed
+- OE 路径A（利润表视角 OE_income）: 折旧用 CAPEX×0.55 估计，数据不可靠
+- OE 质量验证第5项（利润→现金转化率）: 输入不可靠则输出无意义
+
+### Fixed
+- **CAGR bug**: 3 个数据点→2 个增长期间，`**(1/3)` → `**(1/2)`（影响 oe_calculator + l5_calculator 共 3 处）
+- **可支配现金单位**: Tushare 元→万元转换（与分红单位对齐）
+
+### 茅台验证
+- PR 1.87% (v0.17: 2.24%), 分配比率 74.9%(历史外推), 可支配现金 454 亿, Final 11.06 备选池
+
+
 ## [Unreleased] v0.17
 
 ### Fixed
