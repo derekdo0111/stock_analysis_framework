@@ -352,6 +352,26 @@ class TushareClient:
             fields=fields,
         )
 
+    # ── 回购 ──
+
+    def repurchase(
+        self, *, ann_date: str = "", start_date: str = "", end_date: str = "",
+        fields: str | None = None
+    ) -> pd.DataFrame:
+        """股票回购 (Tushare: repurchase) — 回购进度/数量/金额。
+
+        注意：此接口无 ts_code 参数，需按日期范围查询后自行过滤。
+        积分要求：≥600。
+        """
+        return self._call(
+            self._pro.repurchase,
+            "repurchase",
+            ann_date=ann_date,
+            start_date=start_date,
+            end_date=end_date,
+            fields=fields,
+        )
+
     # ── 批量查询工具方法 ──
 
     def batch_query(

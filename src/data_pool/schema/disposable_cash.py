@@ -1,8 +1,12 @@
 """
-可支配现金 — v0.19 PR 公式的核心输入。
+可支配现金 — v0.20 PR 公式的核心输入。
 
-真实可支配现金 = 经营CF净额 - 投资活动现金流出小计 - 财务费用
+真实可支配现金 = 经营CF净额 - 维持性CAPEX - 财务费用
                 + 货币资金 - 限制性货币 - 短期借款 + 交易性金融资产
+
+维持性CAPEX = 购建固定资产、无形资产支付的现金(c_pay_acq_const_fiolta)
+              替代 v0.19 的「投资活动现金流出小计」以免将买理财等可逆资金配置
+              误判为永久性资本消耗。
 
 所有数据从 StockDataBundle 读取，计算由 DisposableCashCalculator 执行。
 """
@@ -50,7 +54,7 @@ class DisposableCashResult:
             return "N/A"
         return (
             f"经营CF({parts.get('op_cf', 0):.0f}万)"
-            f" - 投资流出({parts.get('inv_out', 0):.0f}万)"
+            f" - 维持性CAPEX({parts.get('maintenance_capex', 0):.0f}万)"
             f" - 财务费用({parts.get('fin_expense', 0):.0f}万)"
             f" + 货币资金({parts.get('money_cap', 0):.0f}万)"
             f" - 限制性货币({parts.get('restricted', 0):.0f}万)"
@@ -103,7 +107,7 @@ class DisposableCashCalculator:
 
             dc_current = (
                 current.get("op_cf", 0)
-                - current.get("inv_out", 0)
+                - current.get("maintenance_capex", 0)
                 - current.get("fin_expense", 0)
                 + current.get("money_cap", 0)
                 - restricted_cash
@@ -114,7 +118,7 @@ class DisposableCashCalculator:
 
             result.formula_parts = {
                 "op_cf": current.get("op_cf", 0),
-                "inv_out": current.get("inv_out", 0),
+                "maintenance_capex": current.get("maintenance_capex", 0),
                 "fin_expense": current.get("fin_expense", 0),
                 "money_cap": current.get("money_cap", 0),
                 "restricted": restricted_cash,
@@ -145,7 +149,7 @@ class DisposableCashCalculator:
                         end_date = str(cf_row.get("end_date", ""))
 
                         op_cf = (cf_row.get("n_cashflow_act") or 0) / 1e4  # 元→万元
-                        inv_out = (cf_row.get("stot_out_inv_act") or 0) / 1e4
+                        maintenance_capex = (cf_row.get("c_pay_acq_const_fiolta") or 0) / 1e4
 
                         # 匹配同年度资产负债表
                         bs_row = bs_yearly[bs_yearly["end_date"].astype(str) == end_date]
@@ -162,7 +166,7 @@ class DisposableCashCalculator:
                         est_restricted = money_cap * restricted_ratio if money_cap > 0 else 0
 
                         dc_year = (
-                            op_cf - inv_out - fin_expense
+                            op_cf - maintenance_capex - fin_expense
                             + money_cap - est_restricted
                             - st_borr + trad_assets_val
                         )
@@ -200,7 +204,7 @@ class DisposableCashCalculator:
             end_date = str(cf_row.get("end_date", ""))
 
             op_cf = float(cf_row.get("n_cashflow_act") or 0) / 1e4  # 元→万元
-            inv_out = float(cf_row.get("stot_out_inv_act") or 0) / 1e4  # 元→万元
+            maintenance_capex = float(cf_row.get("c_pay_acq_const_fiolta") or 0) / 1e4  # 元→万元
 
             # 资产负债表匹配
             bs_row = bs_yearly[bs_yearly["end_date"].astype(str) == end_date]
@@ -214,7 +218,7 @@ class DisposableCashCalculator:
 
             return {
                 "op_cf": op_cf,
-                "inv_out": inv_out,
+                "maintenance_capex": maintenance_capex,
                 "fin_expense": fin_expense,
                 "money_cap": money_cap,
                 "st_borr": st_borr,

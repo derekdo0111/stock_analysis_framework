@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from src.data_fetcher.tushare_client import TushareClient
+from src.data_pool.bundle import StockDataBundle
 from src.rules.loader import load_rules
 
 
@@ -39,10 +39,10 @@ class L5Result:
 
 
 class L5Calculator:
-    """L5 安全边际计算器。"""
+    """L5 安全边际计算器。所有数据从 StockDataBundle 读取。"""
 
-    def __init__(self, client: TushareClient):
-        self._client = client
+    def __init__(self, bundle: StockDataBundle):
+        self._bundle = bundle
         self._rules = load_rules()
         self._mos = self._rules.turtle_constants.margin_of_safety
 
@@ -162,7 +162,7 @@ class L5Calculator:
 
     def _score_revenue_stability(self, ts_code: str, dim) -> float:
         try:
-            df = self._client.income(ts_code=ts_code).sort_values("end_date", ascending=False).head(5)
+            df = self._bundle.income.sort_values("end_date", ascending=False).head(5)
             revenues = [float(r.get("total_revenue") or 0) for _, r in df.iterrows() if r.get("total_revenue")]
             if len(revenues) >= 3:
                 growth_rates = [(revenues[i] - revenues[i + 1]) / revenues[i + 1] * 100
@@ -175,7 +175,7 @@ class L5Calculator:
 
     def _score_margin_stability(self, ts_code: str, dim) -> float:
         try:
-            df = self._client.fina_indicator(ts_code=ts_code).sort_values("end_date", ascending=False).head(5)
+            df = self._bundle.fina_indicator.sort_values("end_date", ascending=False).head(5)
             margins = [float(r.get("grossprofit_margin") or 0) for _, r in df.iterrows()]
             if margins:
                 std = float(np.std(margins))
@@ -186,7 +186,7 @@ class L5Calculator:
 
     def _score_roe_stability(self, ts_code: str, dim) -> float:
         try:
-            df = self._client.fina_indicator(ts_code=ts_code).sort_values("end_date", ascending=False).head(5)
+            df = self._bundle.fina_indicator.sort_values("end_date", ascending=False).head(5)
             roes = [float(r.get("roe") or 0) for _, r in df.iterrows()]
             if roes:
                 std = float(np.std(roes))
@@ -210,7 +210,7 @@ class L5Calculator:
 
     def _score_oe_growth(self, ts_code: str, dim) -> float:
         try:
-            df = self._client.cashflow(ts_code=ts_code).sort_values("end_date", ascending=False).head(5)
+            df = self._bundle.cashflow.sort_values("end_date", ascending=False).head(5)
             # 用简易OE估计: op_cf - capex
             oe_vals = []
             for _, r in df.iterrows():
@@ -228,8 +228,8 @@ class L5Calculator:
 
     def _check_cf_to_profit(self, ts_code: str) -> bool:
         try:
-            cf = self._client.cashflow(ts_code=ts_code).sort_values("end_date", ascending=False).head(3)
-            inc = self._client.income(ts_code=ts_code).sort_values("end_date", ascending=False).head(3)
+            cf = self._bundle.cashflow.sort_values("end_date", ascending=False).head(3)
+            inc = self._bundle.income.sort_values("end_date", ascending=False).head(3)
             for _, crow in cf.iterrows():
                 op_cf = crow.get("n_cashflow_act") or 0
                 ed = str(crow.get("end_date", ""))
@@ -246,8 +246,8 @@ class L5Calculator:
 
     def _check_asset_quality(self, ts_code: str) -> bool:
         try:
-            bs = self._client.balancesheet(ts_code=ts_code).sort_values("end_date", ascending=False).head(3)
-            inc = self._client.income(ts_code=ts_code).sort_values("end_date", ascending=False).head(3)
+            bs = self._bundle.balancesheet.sort_values("end_date", ascending=False).head(3)
+            inc = self._bundle.income.sort_values("end_date", ascending=False).head(3)
             # 应收增速 vs 营收增速
             if len(bs) >= 2 and len(inc) >= 2:
                 ar_growth = (bs.iloc[0].get("accounts_receiv") or 0) / max(1, (bs.iloc[-1].get("accounts_receiv") or 1)) - 1
@@ -264,7 +264,7 @@ class L5Calculator:
     def _check_debt_pressure(self, ts_code: str, item) -> tuple[bool, int]:
         extra = 0
         try:
-            fi = self._client.fina_indicator(ts_code=ts_code).head(1)
+            fi = self._bundle.fina_indicator.head(1)
             if not fi.empty:
                 cr = float(fi.iloc[0].get("current_ratio") or 1.0)
                 qr = float(fi.iloc[0].get("quick_ratio") or 0.5)
@@ -274,12 +274,12 @@ class L5Calculator:
                         st_name = st.get("name", "")
                         if "高杠杆" in st_name:
                             try:
-                                bs = self._client.balancesheet(ts_code=ts_code).head(1)
-                                cf = self._client.cashflow(ts_code=ts_code).head(1)
+                                bs = self._bundle.balancesheet.head(1)
+                                cf = self._bundle.cashflow.head(1)
                                 if not bs.empty and not cf.empty:
                                     debt = (bs.iloc[0].get("st_borrow") or 0) + (bs.iloc[0].get("lt_borrow") or 0) + (bs.iloc[0].get("bonds_payable") or 0)
                                     # EBITDA ≈ n_income + taxes + interest + depreciation
-                                    inc = self._client.income(ts_code=ts_code).head(1)
+                                    inc = self._bundle.income.head(1)
                                     ebitda = (inc.iloc[0].get("total_profit") or 0) + debt * 0.04
                                     if ebitda and ebitda > 0 and debt / ebitda > 4:
                                         extra += 1
@@ -296,7 +296,7 @@ class L5Calculator:
     def _check_industry_trend(self, ts_code: str) -> bool:
         # GDP ≈ 5%, threshold = 5-2 = 3%
         try:
-            inc = self._client.income(ts_code=ts_code).sort_values("end_date", ascending=False).head(3)
+            inc = self._bundle.income.sort_values("end_date", ascending=False).head(3)
             if len(inc) >= 3:
                 revenues = [float(r.get("total_revenue") or 0) for _, r in inc.iterrows()]
                 if revenues[0] and revenues[-1] and revenues[-1] > 0:
@@ -310,7 +310,7 @@ class L5Calculator:
     def _check_governance(self, ts_code: str) -> bool:
         # 大股东质押率需要 pledge_stat 接口
         try:
-            df = self._client.pledge_stat(ts_code=ts_code)
+            df = self._bundle.pledge_stat
             if not df.empty:
                 pledge_ratio = float(df.iloc[0].get("pledge_ratio") or 0)
                 if pledge_ratio > 50:

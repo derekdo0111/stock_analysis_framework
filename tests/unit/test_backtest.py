@@ -42,13 +42,11 @@ class TestWindowManager:
 
 class TestDividendValidator:
     @pytest.fixture
-    def mock_client(self):
+    def mock_client(self, real_tushare_data):
         c = MagicMock()
-        c.dividend.return_value = pd.DataFrame([
-            {"end_date": "20201231", "cash_div": 20, "div_proc": "实施"},
-            {"end_date": "20211231", "cash_div": 22, "div_proc": "实施"},
-            {"end_date": "20221231", "cash_div": 25, "div_proc": "实施"},
-        ])
+        d = real_tushare_data["600519.SH"]
+        c.dividend.return_value = pd.DataFrame(d["dividend"])
+        c.daily.return_value = pd.DataFrame(d["daily"])
         return c
 
     @pytest.fixture

@@ -225,14 +225,46 @@ class TurtleScorer:
         """估算 L3 商业模式乘数。
 
         基于: ROE水平 + 毛利率 + 行业地位
+
+        v0.19 fix: 优先取年报ROE；若无年报则基于季报推测全年ROE。
+        Tushare fina_indicator 的 roe 字段为累计值（非年化），
+        Q1→×4, H1→×2, Q3→×4/3。
         """
         try:
-            fi = self._bundle.fina_indicator.head(1)
+            fi = self._bundle.fina_indicator
             if fi.empty:
                 return self._l3_cfg.good
 
-            roe = fi.iloc[0].get("roe") or 0
-            gm = fi.iloc[0].get("grossprofit_margin") or 0
+            # ── 优先取最近年报 ──
+            annual = fi[
+                fi["end_date"].astype(str).str[-4:] == "1231"
+            ].head(1)
+
+            if not annual.empty:
+                roe = annual.iloc[0].get("roe") or 0
+                gm = annual.iloc[0].get("grossprofit_margin") or 0
+            else:
+                # ── 无年报：用最近季报推测全年ROE ──
+                latest = fi.head(1)
+                roe_raw = latest.iloc[0].get("roe") or 0
+                gm = latest.iloc[0].get("grossprofit_margin") or 0
+
+                try:
+                    end_str = str(latest.iloc[0].get("end_date", "")).strip()
+                    month = int(end_str[4:6]) if len(end_str) >= 6 else 12
+                except (ValueError, IndexError):
+                    month = 12
+
+                if month == 12:
+                    roe = roe_raw                    # 年报，直接用
+                elif month in (3, 4):
+                    roe = roe_raw * 4.0              # Q1 → 年化
+                elif month in (6, 7, 8):
+                    roe = roe_raw * 2.0              # H1 → 年化
+                elif month in (9, 10):
+                    roe = roe_raw * (4.0 / 3.0)      # Q3 → 年化
+                else:
+                    roe = roe_raw                    # 未知，直接用
 
             # 简化评估
             if roe >= 25 and gm >= 60:

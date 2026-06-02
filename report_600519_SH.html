@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>龟龟策略分析报告 — 贵州茅台 (600519.SH)</title>
+<style>
+  :root { --bg:#0d1117; --card:#161b22; --border:#30363d; --text:#c9d1d9;
+         --accent:#58a6ff; --green:#3fb950; --yellow:#d2991d; --red:#f85149;
+         --text-dim:#8b949e; --orange:#db6d28; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; padding:32px; max-width:1100px; margin:0 auto; line-height:1.7; }
+  h2 { font-size:1.25rem; margin:36px 0 16px; border-bottom:1px solid var(--border); padding-bottom:10px; }
+  h3 { font-size:1rem; margin:16px 0 8px; color:var(--accent); }
+  .header { text-align:center; margin-bottom:40px; }
+  .header .score { font-size:3.5rem; font-weight:700; color:var(--red); }
+  .pool-tag { display:inline-block; padding:6px 20px; border-radius:20px; font-size:0.95rem; font-weight:600; margin-left:12px; vertical-align:middle; }
+  .pool-core { background:#1a3a2a; color:var(--green); }
+  .pool-watch { background:#3a2a0a; color:var(--yellow); }
+  .pool-fallback { background:#1a1a2e; color:var(--text-dim); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px; margin-bottom:24px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:20px; }
+  .card h3 { margin-top:0; }
+  .metric { display:flex; justify-content:space-between; padding:5px 0; font-size:0.88rem; border-bottom:1px solid rgba(48,54,61,0.4); }
+  .metric:last-child { border-bottom:none; }
+  .metric-val { font-weight:600; text-align:right; }
+  .bar-wrap { height:6px; background:var(--border); border-radius:3px; margin:4px 0 8px; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:3px; }
+  .bar-fill.blue { background:var(--accent); }
+  .bar-fill.green { background:var(--green); }
+  .bar-fill.yellow { background:var(--yellow); }
+  .bar-fill.red { background:var(--red); }
+  .check-item { padding:10px 14px; margin:4px 0; border-radius:6px; font-size:0.85rem; }
+  .check-pass { background:#1a3a2a; border-left:3px solid var(--green); }
+  .check-fail { background:#3a0a0a; border-left:3px solid var(--red); }
+  table { width:100%; border-collapse:collapse; font-size:0.85rem; margin-top:8px; }
+  th,td { padding:7px 10px; text-align:left; border-bottom:1px solid var(--border); }
+  th { color:var(--text-dim); font-weight:500; font-size:0.8rem; }
+  td { font-variant-numeric:tabular-nums; }
+  .flag { padding:10px 14px; border-radius:6px; margin:4px 0; font-size:0.85rem; }
+  .flag-warn { background:#3a2a0a; border-left:3px solid var(--yellow); }
+  .pipeline { display:flex; gap:6px; margin:16px 0; flex-wrap:wrap; }
+  .step { padding:6px 14px; border-radius:6px; font-size:0.78rem; font-weight:500; }
+  .step-done { background:#1a3a2a; color:var(--green); }
+  .step-skip { background:#1a1a2e; color:var(--text-dim); }
+  .footer { text-align:center; color:var(--text-dim); font-size:0.82rem; margin-top:56px; padding-top:24px; border-top:1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>贵州茅台 <span style="color:var(--text-dim);font-size:0.7em;">600519.SH</span></h1>
+  <div class="score">11.06</div>
+  <span class="pool-tag pool-fallback">备选池</span>
+  <div style="margin-top:8px;color:var(--text-dim);font-size:0.85rem;">龟龟投资策略 v0.19 · 2026-06-01 19:06</div>
+</div>
+
+<!-- ====== 1. HardGate 否决检查 ====== -->
+<h2>1. HardGate 否决检查</h2>
+
+<div class="grid">
+  
+  <div class="check-item check-pass">
+    <strong>PASS</strong> &nbsp; audit_opinion
+    <span style="color:var(--text-dim);margin-left:8px;">= 标准无保留意见</span>
+  </div>
+  
+  <div class="check-item check-pass">
+    <strong>PASS</strong> &nbsp; auditor_changes_3y
+    <span style="color:var(--text-dim);margin-left:8px;">= 1</span>
+  </div>
+  
+  <div class="check-item check-pass">
+    <strong>PASS</strong> &nbsp; list_years
+    <span style="color:var(--text-dim);margin-left:8px;">= 24.8</span>
+  </div>
+  
+  <div class="check-item check-pass">
+    <strong>PASS</strong> &nbsp; name
+    <span style="color:var(--text-dim);margin-left:8px;">= 贵州茅台</span>
+  </div>
+  
+  <div class="check-item check-pass">
+    <strong>PASS</strong> &nbsp; price_change_60d
+    <span style="color:var(--text-dim);margin-left:8px;">= -6.99</span>
+  </div>
+  
+</div>
+
+
+<!-- ====== 2. L2 初筛 + 公司分类 ====== -->
+<h2>2. L2 初筛 &amp; 公司分类</h2>
+<div class="grid">
+  <div class="card">
+    <h3>L2 初筛 (满分 20)</h3>
+    <div class="metric"><span>财务质量</span><span class="metric-val">5.0 / 9</span></div>
+    <div class="metric"><span>估值合理性</span><span class="metric-val">2.5 / 6</span></div>
+    <div class="metric"><span>流动性健康</span><span class="metric-val">2.0 / 3</span></div>
+    <div class="metric"><span>加分项</span><span class="metric-val">1.0 / 2</span></div>
+    <div class="metric" style="font-weight:700;border-top:1px solid var(--border);margin-top:6px;padding-top:6px;">
+      <span>L2 总分</span><span class="metric-val">10.5 / 20</span>
+    </div>
+    <div class="bar-wrap"><div class="bar-fill blue" style="width:52%"></div></div>
+    <div style="margin-top:8px;font-size:0.82rem;color:var(--text-dim);">分流: 观察池</div>
+  </div>
+  <div class="card">
+    <h3>公司分类</h3>
+    <div class="metric"><span>分类</span><span class="metric-val green">STANDARD_CONSUMER</span></div>
+    
+    <h3 style="margin-top:20px;">L3 商业模式乘数</h3>
+    <div class="metric"><span>乘数</span><span class="metric-val green">&times; 0.8</span></div>
+  </div>
+</div>
+
+<!-- ====== 3. OE 路径B + PR 穿透回报率 (v0.19) ====== -->
+<h2>3. 穿透回报率 (L4) — v0.19 前瞻公式</h2>
+<div class="grid">
+  <div class="card">
+    <h3>OE 概要 (路径B)</h3>
+    <div class="metric"><span>OE_cf 中位数</span><span class="metric-val">6011478.7 亿</span></div>
+    <div class="metric"><span>OE 质量标签</span><span class="metric-val">🟡 存疑</span></div>
+    
+    <div class="metric"><span>OE_cf 近5年</span><span class="metric-val">6011478.7, 9035827.2, 6541435.8, 3431065.0, 3431065.0 亿</span></div>
+    
+  </div>
+  <div class="card">
+    <h3>L4 打分</h3>
+    <div class="metric"><span>PR (穿透回报率)</span><span class="metric-val red">2.50%</span></div>
+    <div class="metric"><span>起点分</span><span class="metric-val">0.0 / 20</span></div>
+    <div class="metric"><span>质量扣分</span><span class="metric-val red">5.0</span></div>
+    <div class="metric" style="font-weight:700;border-top:1px solid var(--border);margin-top:6px;padding-top:6px;">
+      <span>L4 最终得分</span><span class="metric-val yellow">0.0 / 40</span>
+    </div>
+    <div class="bar-wrap"><div class="bar-fill yellow" style="width:0%"></div></div>
+  </div>
+</div>
+
+<h3>v0.19 PR 公式展开</h3>
+<div class="card" style="overflow-x:auto;">
+  <div style="font-size:0.85rem;color:var(--accent);margin-bottom:12px;">
+    PR = (可支配现金 &times; 分配比率 &times; 0.90 + 回购注销) / 当前市值
+  </div>
+  <table>
+    <tr><th>组件</th><th>值</th><th>来源</th></tr>
+    <tr>
+      <td>当前可支配现金</td>
+      <td>4539466.1 亿</td>
+      <td style="color:var(--text-dim);">经营CF - 投资流出 - 财务费用 + 货币资金 - 限制性货币 - 短期借款 + 交易性金融资产</td>
+    </tr>
+    <tr>
+      <td>分配比率</td>
+      <td>0.0%</td>
+      <td style="color:var(--text-dim);">历史外推</td>
+    </tr>
+    <tr>
+      <td>红利税率</td>
+      <td>10%</td>
+      <td style="color:var(--text-dim);">A股红利税默认10%</td>
+    </tr>
+    <tr>
+      <td>回购注销金额</td>
+      <td>0 亿</td>
+      <td style="color:var(--text-dim);">Web搜索+LLM提取</td>
+    </tr>
+    <tr style="font-weight:700;border-top:2px solid var(--border);">
+      <td>PR (穿透回报率)</td>
+      <td style="color:red;">2.50%</td>
+      <td></td>
+    </tr>
+  </table>
+</div>
+
+<!-- ====== 4. L5 安全边际 ====== -->
+<h2>4. 安全边际 (L5)</h2>
+<div class="grid">
+  <div class="card">
+    <h3>外推可行度 (满分 30)</h3>
+    
+    
+    <div class="metric"><span>revenue_stability</span><span class="metric-val">2.0</span></div>
+    
+    <div class="metric"><span>margin_stability</span><span class="metric-val">2.0</span></div>
+    
+    <div class="metric"><span>roe_stability</span><span class="metric-val">2.0</span></div>
+    
+    <div class="metric"><span>industry_predictability</span><span class="metric-val">3.0</span></div>
+    
+    <div class="metric"><span>management_stability</span><span class="metric-val">3.0</span></div>
+    
+    <div class="metric"><span>oe_growth_trend</span><span class="metric-val">2.0</span></div>
+    
+    
+    <div class="metric" style="font-weight:700;border-top:1px solid var(--border);margin-top:6px;padding-top:6px;">
+      <span>外推总分</span><span class="metric-val">14.0 / 30</span>
+    </div>
+    <div style="font-size:0.82rem;color:var(--text-dim);margin-top:6px;">评级: 低可行</div>
+  </div>
+  <div class="card">
+    <h3>价值陷阱排查 (最多扣 7 分)</h3>
+    
+    
+    <div class="flag flag-warn">资产质量</div>
+    
+    <div class="flag flag-warn">行业趋势</div>
+    
+    
+    <div class="metric" style="margin-top:8px;"><span>陷阱扣分</span><span class="metric-val red">2 / 7</span></div>
+    <div style="font-size:0.82rem;color:var(--text-dim);margin-top:4px;">风险等级: 中风险 &nbsp;|&nbsp; 仓位上限: 2.0% &nbsp;|&nbsp; 0~2%</div>
+    <div class="metric" style="font-weight:700;border-top:1px solid var(--border);margin-top:6px;padding-top:6px;">
+      <span>L5 最终得分</span><span class="metric-val yellow">3.3 / 25</span>
+    </div>
+    <div class="bar-wrap"><div class="bar-fill yellow" style="width:13%"></div></div>
+  </div>
+</div>
+
+<!-- ====== 5. 打分汇总 ====== -->
+<h2>5. 打分汇总</h2>
+<div class="grid">
+  <div class="card" style="grid-column:1/-1;">
+    <h3>Final = (L2 + L3 + L4 + L5) &times; L3</h3>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;text-align:center;margin-top:12px;">
+      <div style="background:var(--bg);padding:14px;border-radius:8px;">
+        <div style="font-size:0.78rem;color:var(--text-dim);">L2 初筛</div>
+        <div style="font-size:1.3rem;font-weight:700;color:var(--accent);">10.5</div>
+        <div style="font-size:0.7rem;color:var(--text-dim);">/20</div>
+      </div>
+      <div style="background:var(--bg);padding:14px;border-radius:8px;">
+        <div style="font-size:0.78rem;color:var(--text-dim);">L4 穿透回报率</div>
+        <div style="font-size:1.3rem;font-weight:700;color:yellow;">0.0</div>
+        <div style="font-size:0.7rem;color:var(--text-dim);">/40</div>
+      </div>
+      <div style="background:var(--bg);padding:14px;border-radius:8px;">
+        <div style="font-size:0.78rem;color:var(--text-dim);">L5 安全边际</div>
+        <div style="font-size:1.3rem;font-weight:700;color:yellow;">3.3</div>
+        <div style="font-size:0.7rem;color:var(--text-dim);">/25</div>
+      </div>
+      <div style="background:var(--bg);padding:14px;border-radius:8px;">
+        <div style="font-size:0.78rem;color:var(--text-dim);">L3 乘数</div>
+        <div style="font-size:1.3rem;font-weight:700;color:var(--text-dim);">&times;0.8</div>
+      </div>
+      <div style="background:rgba(88,166,255,0.1);padding:14px;border-radius:8px;border:1px solid var(--accent);">
+        <div style="font-size:0.78rem;color:var(--text-dim);">最终得分</div>
+        <div style="font-size:1.6rem;font-weight:700;color:var(--red);">11.06</div>
+        <div style="font-size:0.7rem;color:var(--text-dim);">备选池</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 6. 管线 ====== -->
+<h2>6. 处理管线</h2>
+<div class="pipeline">
+  <div class="step step-done">HardGate</div>
+  <div class="step step-done">L2初筛</div>
+  <div class="step step-done">公司分类</div>
+  <div class="step step-done">OE路径B</div>
+  <div class="step step-done">穿透回报率</div>
+  <div class="step step-done">L5安全边际</div>
+  <div class="step step-done">乘法打分</div>
+  <div class="step step-skip">Agent分析</div>
+  <div class="step step-skip">Agent验证</div>
+</div>
+
+<!-- ====== 7. Agent 分析 ====== -->
+
+
+<div class="footer">
+  龟龟投资策略框架 v0.19 · 本报告仅供研究参考，不构成投资建议。<br>
+  生成时间: 2026-06-01 19:06
+</div>
+</body></html>

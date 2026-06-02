@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>龟龟策略回测报告</title>
+<style>
+  :root { --bg:#0d1117; --card:#161b22; --border:#30363d; --text:#c9d1d9;
+         --green:#3fb950; --yellow:#d2991d; --red:#f85149; --accent:#58a6ff;
+         --text-dim:#8b949e; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,sans-serif; padding:32px; max-width:1200px; margin:0 auto; line-height:1.7; }
+  h1 { font-size:2rem; margin-bottom:8px; }
+  h2 { font-size:1.3rem; margin:32px 0 16px; border-bottom:1px solid var(--border); padding-bottom:8px; }
+  .subtitle { color:var(--text-dim); margin-bottom:32px; }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px; margin-bottom:24px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:20px; }
+  .card h3 { font-size:1rem; color:var(--accent); margin-bottom:12px; }
+
+  .metric { display:flex; justify-content:space-between; padding:4px 0; font-size:0.9rem; }
+  .metric-val { font-weight:600; }
+  .metric-val.green { color:var(--green); }
+  .metric-val.red { color:var(--red); }
+  .metric-val.yellow { color:var(--yellow); }
+
+  table { width:100%; border-collapse:collapse; font-size:0.88rem; margin:16px 0; }
+  th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--border); }
+  th { color:var(--text-dim); font-weight:600; }
+
+  .verdict { font-size:1.2rem; font-weight:700; padding:16px 0; }
+  .note { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:16px; margin:16px 0; font-size:0.9rem; color:var(--text-dim); line-height:1.6; }
+  .footer { text-align:center; color:var(--text-dim); font-size:0.82rem; margin-top:48px; padding-top:24px; border-top:1px solid var(--border); }
+</style>
+</head>
+<body>
+<h1>龟龟策略 v0.15 — 回测验证报告</h1>
+<p class="subtitle">
+  验证逻辑: 实际分红 vs PR阈值(5%/8%/12%) · PR兑现率 ≥ 0.7 · 分组Top5 vs Bottom5股息差
+</p>
+
+<!-- ====== OVERVIEW ====== -->
+<div class="grid">
+  <div class="card">
+    <h3>回测总览</h3>
+    <div class="metric"><span>回测窗口数</span><span class="metric-val">1</span></div>
+    <div class="metric"><span>PR兑现率(跨窗口中位数)</span><span class="metric-val yellow">0.65</span></div>
+    <div class="metric"><span>阈值达标率(实际≥5%)</span><span class="metric-val yellow">0%</span></div>
+    <div class="metric"><span>分组Spread(Top5-Bottom5)</span><span class="metric-val yellow">0.0%</span></div>
+  </div>
+  <div class="card">
+    <h3>PR 三级阈值</h3>
+    <div class="metric"><span>≥12% 优秀</span><span class="metric-val green">起点分 20</span></div>
+    <div class="metric"><span>≥8% 良好</span><span class="metric-val">起点分 15</span></div>
+    <div class="metric"><span>≥5% 及格 (最低门槛)</span><span class="metric-val yellow">起点分 10</span></div>
+    <div class="metric"><span>&lt;5% 不及格</span><span class="metric-val red">L4=0, 不进策略</span></div>
+  </div>
+</div>
+
+<!-- ====== WINDOW DETAILS ====== -->
+<h2>各窗口详情</h2>
+<table>
+  <tr>
+    <th>窗口</th>
+    <th>股票数</th>
+    <th>预测PR%</th>
+    <th>PR兑现率</th>
+    <th>兑现率≥0.7</th>
+    <th>实际≥5%</th>
+    <th>Top5股息</th>
+    <th>Bot5股息</th>
+    <th>Spread</th>
+  </tr>
+  
+  <tr>
+    <td>窗口6</td>
+    <td>4</td>
+    <td>6.0%</td>
+    <td><span style="color:var(--yellow)">0.60</span></td>
+    <td><span style="color:var(--yellow)">0%</span></td>
+    <td><span style="color:var(--yellow)">0%</span></td>
+    <td>3.5%</td>
+    <td>3.5%</td>
+    <td style="color:var(--red)">0.0%</td>
+  </tr>
+  
+</table>
+
+<!-- ====== VERDICT ====== -->
+<div class="verdict" style="color:var(--yellow)">
+  
+  PR兑现率<0.7: 穿透回报率预测与实际分红存在偏差
+  
+</div>
+
+
+
+<div class="note">
+  <strong>回测设计说明</strong><br>
+  验证逻辑: 以选股时的PR预测(T-5年财务数据)与T+1~T+N年实际每股分红对比。<br>
+  对比基准: PR三级阈值(5%/8%/12%) — 而非无风险利率或市场指数。<br>
+  核心问题: "PR≥5%地选出来的股票，后续实际分红是否真的≥5%？"
+</div>
+
+<div class="footer">
+  龟龟投资策略 v0.15 · 生成于 2026-06-01 10:24
+</div>
+</body>
+</html>

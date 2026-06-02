@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 from loguru import logger
 
-from src.data_fetcher.tushare_client import TushareClient
+from src.data_pool.bundle import StockDataBundle
 from src.screener.hard_gate import HardGateChecker
 from src.screener.l2_screener import L2Screener
 from src.screener.classifier import CompanyClassifier
@@ -38,12 +38,9 @@ class PipelineRunner:
     对每个窗口: HardGate → L2 → 分类 → 打分
     """
 
-    def __init__(self, client: TushareClient):
-        self._client = client
-        self._hard_gate = HardGateChecker(client)
-        self._l2 = L2Screener(client)
-        self._classifier = CompanyClassifier(client)
-        self._scorer = TurtleScorer(client)
+    def __init__(self, orchestrator):  # type: DataPoolOrchestrator
+        from src.data_fetcher.orchestrator import DataPoolOrchestrator
+        self._orch: DataPoolOrchestrator = orchestrator
 
     def run_window(
         self,
@@ -64,27 +61,34 @@ class PipelineRunner:
         logger.info(f"{window.label}: 全市场 {len(ts_codes)} 只股票")
 
         for code in ts_codes:
+            # 确保快照已缓存
+            self._orch.snapshot_stock(code)
+            bundle = self._orch.get_bundle(code)
+            if bundle is None:
+                continue
+
             # HardGate
-            hg = self._hard_gate.check(code)
+            hg = HardGateChecker(bundle).check(code)
             if not hg.passed:
                 result.failed_hard_gate += 1
                 continue
 
             # L2
-            l2 = self._l2.score(code)
+            l2 = L2Screener(bundle).score(code)
             if l2.eliminated:
                 result.failed_l2 += 1
                 continue
 
             # 分类
-            cls = self._classifier.classify(code)
+            cls = CompanyClassifier(bundle).classify(code)
             if not cls.eligible:
                 result.failed_classify += 1
                 continue
 
             # 打分
             try:
-                final = self._scorer.score(code)
+                scorer = TurtleScorer(bundle)
+                final = scorer.score(code)
                 if final.is_valid:
                     result.stocks.append(final)
                     result.passed += 1
@@ -102,7 +106,8 @@ class PipelineRunner:
     def _get_universe(self) -> list[str]:
         """获取全市场股票池。"""
         try:
-            df = self._client.stock_basic()
+            # 使用 orchestrator 的 client 获取全市场股票列表
+            df = self._orch._client.stock_basic()
             return df["ts_code"].tolist()[:100]  # 限制100只用于回测
         except Exception:
             # 降级: 返回常见股票

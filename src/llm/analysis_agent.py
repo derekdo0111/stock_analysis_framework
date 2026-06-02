@@ -79,8 +79,18 @@ class AnalysisAgent:
         )
 
         if self._client is None:
-            result.error = "LLM not configured (no API key)"
-            self._apply_default_scoring(result, final_score)
+            # 使用本地 Python 规则引擎代替 LLM
+            from src.llm.local_analysis_engine import run_local_analysis
+            local = run_local_analysis(final_score, profile)
+            # 复制本地分析结果到 result
+            result.success = True
+            result.qualitative_total = local.qualitative_total
+            result.module_scores = local.module_scores
+            result.module_details = local.module_details
+            result.business_model = local.business_model
+            result.business_model_reasoning = local.business_model_reasoning
+            result.red_flags = local.red_flags
+            result.error = ""
             return result
 
         # 构建 Prompt
@@ -196,8 +206,9 @@ class AnalysisAgent:
         return "\n".join(lines)
 
     def _apply_default_scoring(self, result: AnalysisResult, fs: FinalScore) -> None:
-        """LLM 失败时使用 Python 默认打分 (保守策略)。"""
-        result.success = False
+        """LLM 不可用时使用 Python 默认打分 (保守策略)。"""
+        result.success = True  # 视为"执行成功"（用默认值）
+        result.error = "LLM不可用，使用Python默认保守打分"
         # 基于 L2 分和 L3 乘数估算定性分
         base = fs.l2_score / 20.0 * 5.0  # 将L2映射到0-5量级
         result.qualitative_total = round(base * 9, 1)  # 9模块

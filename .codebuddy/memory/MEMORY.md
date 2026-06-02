@@ -20,7 +20,7 @@
 - 用户于 2026-06-01 发现 agent 在解释回测流程时编造了茅台分红数据（实际应调用 Tushare dividend 接口获取），此为严重错误，写入铁律防止再犯
 
 ### stock-analysis-framework (D:\project\stock-analysis-framework\)
-- 龟龟投资策略 v0.19，Python 3.9+ / Poetry / Pydantic v2 / Pandas / Tushare / akshare / pdfplumber / Jinja2 / loguru / tenacity
+- 龟龟投资策略 v0.21，Python 3.9+ / Poetry / Pydantic v2 / Pandas / Tushare / akshare / pdfplumber / Jinja2 / loguru / tenacity
 - 阶段一~五完成，162测试/80%+覆盖率
 - GitHub: https://github.com/derekdo0111/stock_analysis_framework (main 分支)
 - 核心理念：确定性计算(Python)与智能判断(LLM)彻底分离
@@ -36,6 +36,21 @@
 - 3规则YAML驱动（hard_gate / l2_screener / turtle_constants）
 - Agent约束：分析Agent(CFA)三段式证据链 + 验证Agent(CPA+CFE)10项审计程序
 - 报告增强：每个分析结论标注验证结果（🟢✓/🟡✗WARNING/🔴✗CRITICAL）
+
+## 方法论 v0.21 分配比率外推修正（2026-06-02）
+
+### 问题
+DC 公式包含年末 money_cap，该值已被当年分红抽走。外推分配比率时 `ratio = total_div / DC` 产生循环悖论：
+- 分红越多 → money_cap 年末越小 → DC 越小 → ratio 虚高（早年可达 133%）
+
+### 修正
+`_extrapolate_from_history()` 中：`adjusted_dc = dc + total_div`（把分红加回年末现金），再用 `total_div / adjusted_dc` 算比率。
+- ratio 天然 ≤ 100%，消除循环悖论
+- 不需要另存年初 money_cap，不需要改 DC 公式
+
+## 方法论 v0.20 DC maintenance_capex 修正（2026-06-02）
+- DC 公式：`c_pay_acq_const_fiolta`（购建固定资产、无形资产）替代 `stot_out_inv_act`（投资活动现金流出总计）
+- 只扣维持性 CAPEX，不再扣所有投资流出（含短期理财、参股等）
 
 ## 方法论 v0.19 PR 公式第三次修正（2026-06-01）
 

@@ -96,9 +96,26 @@ class LocalStorage:
         raise FileNotFoundError(f"Dataset '{name}' not found in {self._base}")
 
     def exists(self, name: str) -> bool:
-        return (self._json_dir / f"{name}.json").exists() or (
-            self._parquet_dir / f"{name}.parquet"
-        ).exists()
+        """检查数据集是否存在（支持前缀检查: '600519.SH' 匹配 '600519.SH_basic' 等）。"""
+        # 精确匹配
+        if ((self._json_dir / f"{name}.json").exists() or
+            (self._parquet_dir / f"{name}.parquet").exists()):
+            return True
+        # 前缀匹配（用于检查股票快照是否存在）
+        json_files = list(self._json_dir.glob(f"{name}_*.json"))
+        parquet_files = list(self._parquet_dir.glob(f"{name}_*.parquet"))
+        return len(json_files) > 0 or len(parquet_files) > 0
+
+    def get_paths(self, name: str) -> dict[str, str]:
+        """获取数据集的 JSON/Parquet 文件路径。支持前缀匹配。"""
+        paths: dict[str, str] = {}
+        json_files = list(self._json_dir.glob(f"{name}_*.json")) or list(self._json_dir.glob(f"{name}.json"))
+        parquet_files = list(self._parquet_dir.glob(f"{name}_*.parquet")) or list(self._parquet_dir.glob(f"{name}.parquet"))
+        if json_files:
+            paths["json"] = str(json_files[0])
+        if parquet_files:
+            paths["parquet"] = str(parquet_files[0])
+        return paths
 
     def list_datasets(self) -> list[str]:
         """列出所有数据集名称。"""

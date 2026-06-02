@@ -10,10 +10,9 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
 
-import pandas as pd
 from loguru import logger
 
-from src.data_fetcher.tushare_client import TushareClient
+from src.data_pool.bundle import StockDataBundle
 from src.rules.loader import load_rules, RuleSet
 
 
@@ -30,10 +29,11 @@ class HardGateChecker:
     """HardGate 否决检查器。
 
     6项检查，按规则 YAML 驱动，任一项触发则 direct rejection。
+    所有数据从 StockDataBundle 读取，不再直连 Tushare。
     """
 
-    def __init__(self, client: TushareClient, rules: RuleSet | None = None):
-        self._client = client
+    def __init__(self, bundle: StockDataBundle, rules: RuleSet | None = None):
+        self._bundle = bundle
         self._rules = rules or load_rules()
         self._config = self._rules.hard_gate
 
@@ -84,7 +84,7 @@ class HardGateChecker:
         if not cfg.enabled:
             return
         try:
-            df = self._client.fina_audit(ts_code=ts_code)
+            df = self._bundle.fina_audit
             if df.empty:
                 return
             latest = df.iloc[0]
@@ -101,7 +101,7 @@ class HardGateChecker:
         if not cfg.enabled:
             return
         try:
-            df = self._client.fina_audit(ts_code=ts_code)
+            df = self._bundle.fina_audit
             if df.empty:
                 return
             # 近3年的审计机构去重计数
@@ -134,7 +134,7 @@ class HardGateChecker:
         if not cfg.enabled:
             return
         try:
-            df = self._client.stock_basic()
+            df = self._bundle.stock_basic
             row = df[df["ts_code"] == ts_code]
             if row.empty:
                 return
@@ -155,7 +155,7 @@ class HardGateChecker:
         if not cfg.enabled:
             return
         try:
-            df = self._client.stock_basic()
+            df = self._bundle.stock_basic
             row = df[df["ts_code"] == ts_code]
             if row.empty:
                 return
@@ -175,7 +175,8 @@ class HardGateChecker:
             return
         try:
             start = (date.today() - timedelta(days=cfg.lookback_days + 10)).strftime("%Y%m%d")
-            df = self._client.daily(ts_code=ts_code, start_date=start)
+            df = self._bundle.daily
+            df = df[df["trade_date"].astype(str) >= start].copy()
             if len(df) < 5:
                 return
             df = df.sort_values("trade_date")

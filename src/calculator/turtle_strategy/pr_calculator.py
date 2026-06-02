@@ -1,7 +1,10 @@
 """
-穿透回报率 (Penetration Return) 计算器 — v0.19。
+穿透回报率 (Penetration Return) 计算器 — v0.21。
 
 PR = (当前可支配现金 × 分配比率 × 0.90 + 回购注销金额) / 最新收盘总市值
+
+v0.21: 分配比率外推加回分红后计算，避免 money_cap 被分红抽干导致 ratio 虚高。
+v0.20: DC 改用 maintenance_capex(c_pay_acq_const_fiolta) 替代 stot_out_inv_act。
 
 流程:
 1. 计算当前可支配现金（DisposableCashCalculator）
@@ -29,7 +32,7 @@ from src.rules.loader import load_rules
 
 @dataclass
 class PRCalculationResult:
-    """穿透回报率计算结果 — v0.19。"""
+    """穿透回报率计算结果 — v0.21。"""
 
     ts_code: str
     pr_pct: float = 0.0  # PR (%)
@@ -61,10 +64,13 @@ class PRCalculationResult:
 
 
 class PRCalculator:
-    """穿透回报率计算器 — v0.19。
+    """穿透回报率计算器 — v0.21。
 
     PR = (当前可支配现金 × 分配比率 × 0.90 + 回购注销金额) / 最新总市值
     所有数据从 StockDataBundle 读取。
+
+    v0.21: 分配比率外推加回分红后计算，避免 money_cap 被分红抽干导致 ratio 虚高。
+    v0.20: DC 改用 maintenance_capex(c_pay_acq_const_fiolta) 替代 stot_out_inv_act。
     """
 
     def __init__(self, bundle: StockDataBundle):
@@ -195,7 +201,9 @@ class PRCalculator:
                     total_share = self._get_year_end_total_share(ts_code, year)
                     if total_share > 0:
                         total_div = annual_divs[year] * total_share  # 万元
-                        ratios.append(total_div / dc * 100)
+                        # v0.21: 加回分红后计算分配比率，避免 money_cap 被分红抽干导致虚高
+                        adjusted_dc = dc + total_div
+                        ratios.append(total_div / adjusted_dc * 100)
 
             if ratios:
                 median_ratio = float(np.median(ratios))

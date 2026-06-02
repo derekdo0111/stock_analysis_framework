@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from src.data_fetcher.tushare_client import TushareClient
+from src.data_pool.bundle import StockDataBundle
 from src.backtest.window_manager import BacktestWindow
 
 
@@ -59,8 +59,8 @@ class DividendValidation:
 class DividendValidator:
     """分红验证器 — 对比 PR 门槛而非无风险利率。"""
 
-    def __init__(self, client: TushareClient):
-        self._client = client
+    def __init__(self, bundle: StockDataBundle):
+        self._bundle = bundle
 
     def validate(
         self,
@@ -87,15 +87,19 @@ class DividendValidator:
             final_score=final_score,
         )
 
-        # 拉取验证期实际分红
-        dividends = self._fetch_dividends(ts_code, window)
-        result.actual_dividends = dividends
+        # 拉取验证期实际分红（按年汇总）+ 年末股价
+        yearly_dividends = self._fetch_dividends(ts_code, window)
+        result.actual_dividends = list(yearly_dividends.values())
 
-        # 计算实际年化股息回报
-        if dividends:
-            positives = [d for d in dividends if d > 0]
-            if positives:
-                result.actual_dividend_yield = round(float(np.mean(positives)), 2)
+        # 计算年化股息回报（%）= 每股年分红 / 年末股价 × 100
+        if yearly_dividends:
+            yields_pct = []
+            for year, div_per_share in yearly_dividends.items():
+                price = self._get_year_end_price(ts_code, year)
+                if price and price > 0:
+                    yields_pct.append(div_per_share / price * 100)
+            if yields_pct:
+                result.actual_dividend_yield = round(float(np.mean(yields_pct)), 2)
 
         # 核心判定
         if result.predicted_pr_pct > 0 and result.actual_dividend_yield > 0:
@@ -111,22 +115,58 @@ class DividendValidator:
 
         return result
 
-    def _fetch_dividends(self, ts_code: str, window: BacktestWindow) -> list[float]:
-        """拉取验证期的每股派息(元)。"""
+    def _get_year_end_price(self, ts_code: str, year: int) -> float | None:
+        """获取年末收盘价，从 bundle 过滤。"""
         try:
-            df = self._client.dividend(ts_code=ts_code)
+            end_date = f"{year}1231"
+            df = self._bundle.daily
+            row = df[df["trade_date"].astype(str) == end_date]
+            if not row.empty:
+                close = row.iloc[0].get("close")
+                if close and float(close) > 0:
+                    return float(close)
+        except Exception:
+            pass
+        # fallback: 往前找最近交易日
+        for day_offset in range(1, 10):
+            try:
+                day = 31 - day_offset
+                if day < 1:
+                    break
+                alt_date = f"{year}12{day:02d}"
+                row = self._bundle.daily[self._bundle.daily["trade_date"].astype(str) == alt_date]
+                if not row.empty:
+                    close = row.iloc[0].get("close")
+                    if close and float(close) > 0:
+                        return float(close)
+            except Exception:
+                continue
+        return None
+
+    def _fetch_dividends(self, ts_code: str, window: BacktestWindow) -> dict[int, float]:
+        """从 bundle 读取验证期每年分红总额（元/股，按年汇总多次公告）。
+
+        Returns:
+            {year: total_cash_div_per_share}  — 每股年分红合计
+        """
+        try:
+            df = self._bundle.dividend
             if df.empty:
-                return []
-            dividends = []
+                return {}
+            yearly: dict[int, float] = {}
             for _, row in df.iterrows():
                 end_date = str(row.get("end_date", ""))
                 if not end_date or len(end_date) < 4:
                     continue
                 year = int(end_date[:4])
                 if window.validate_start_year <= year <= window.validate_end_year:
-                    cash_div = float(row.get("cash_div") or 0)
-                    if cash_div > 0 and str(row.get("div_proc", "")).strip() == "实施":
-                        dividends.append(cash_div)
-            return dividends
+                    # 优先用 cash_div_tax（税前），fallback 到 cash_div
+                    cash_div = float(
+                        row.get("cash_div_tax") or row.get("cash_div") or 0
+                    )
+                    proc = str(row.get("div_proc", "")).strip()
+                    if cash_div > 0 and proc in ("实施", "股东大会通过"):
+                        yearly[year] = yearly.get(year, 0) + cash_div
+            return yearly
         except Exception:
-            return []
+            return {}

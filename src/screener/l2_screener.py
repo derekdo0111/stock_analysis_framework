@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 from loguru import logger
 
-from src.data_fetcher.tushare_client import TushareClient
+from src.data_pool.bundle import StockDataBundle
 from src.rules.loader import load_rules
 
 
@@ -32,11 +32,11 @@ class L2ScoreResult:
 class L2Screener:
     """L2 初筛打分器。
 
-    从规则 YAML 驱动，使用 Tushare fina_indicator + daily_basic + dividend。
+    从规则 YAML 驱动，所有数据从 StockDataBundle 读取。
     """
 
-    def __init__(self, client: TushareClient):
-        self._client = client
+    def __init__(self, bundle: StockDataBundle):
+        self._bundle = bundle
         self._rules = load_rules()
         self._scoring = self._rules.l2_screener.scoring
 
@@ -46,8 +46,8 @@ class L2Screener:
 
         # ── 拉取数据 ──
         try:
-            fi = self._client.fina_indicator(ts_code=ts_code).head(1)
-            db = self._client.daily_basic(ts_code=ts_code).head(1)
+            fi = self._bundle.fina_indicator.head(1)
+            db = self._bundle.daily_basic.head(1)
         except Exception as e:
             logger.error(f"L2数据拉取失败 {ts_code}: {e}")
             return result
@@ -168,11 +168,11 @@ class L2Screener:
     def _score_bonus(self, ts_code: str, result: L2ScoreResult) -> None:
         bonus = self._scoring["bonus"]
         total = 0.0
+        df = self._bundle.stock_basic
 
         # 沪深港通
         if "hsgt" in bonus:
             try:
-                df = self._client.stock_basic()
                 row = df[df["ts_code"] == ts_code]
                 if not row.empty and str(row.iloc[0].get("is_hs", "")).upper() in ("H", "1"):
                     total += bonus["hsgt"]["weight"]
@@ -182,7 +182,6 @@ class L2Screener:
         # 上市>10年
         if "listing_over_10y" in bonus:
             try:
-                df = self._client.stock_basic()
                 row = df[df["ts_code"] == ts_code]
                 if not row.empty:
                     list_date = str(row.iloc[0].get("list_date", ""))

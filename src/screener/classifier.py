@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.data_fetcher.tushare_client import TushareClient
+from src.data_pool.bundle import StockDataBundle
 
 
 @dataclass
@@ -50,10 +50,10 @@ _INDUSTRY_UTILITY = {
 
 
 class CompanyClassifier:
-    """公司分类器，基于行业 + 财务特征。"""
+    """公司分类器，基于行业 + 财务特征。所有数据从 StockDataBundle 读取。"""
 
-    def __init__(self, client: TushareClient):
-        self._client = client
+    def __init__(self, bundle: StockDataBundle):
+        self._bundle = bundle
 
     def classify(self, ts_code: str) -> ClassifyResult:
         """分类单只股票。"""
@@ -61,7 +61,7 @@ class CompanyClassifier:
 
         # 获取行业
         try:
-            df = self._client.stock_basic()
+            df = self._bundle.stock_basic
             row = df[df["ts_code"] == ts_code]
             if row.empty:
                 result.category = "UNKNOWN"
@@ -92,7 +92,7 @@ class CompanyClassifier:
 
         # Step 3: 控股型检测 — (交易性金融资产 + 长期股权投资) / 总资产 > 40%
         try:
-            bs = self._client.balancesheet(ts_code=ts_code)
+            bs = self._bundle.balancesheet
             if not bs.empty:
                 row = bs.iloc[0]
                 total_assets = row.get("total_assets")
@@ -110,14 +110,14 @@ class CompanyClassifier:
 
         # Step 4: 成长不分配 — 股息率=0 且 近3年营收 CAGR > 20%
         try:
-            income = self._client.income(ts_code=ts_code)
+            income = self._bundle.income
             if len(income) >= 3:
                 revenues = income.head(3)["total_revenue"].dropna()
                 if len(revenues) >= 3:
                     cagr = (revenues.iloc[0] / revenues.iloc[-1]) ** (1 / 3) - 1
                     if cagr > 0.20:
                         # 检查股息率
-                        db = self._client.daily_basic(ts_code=ts_code)
+                        db = self._bundle.daily_basic
                         if not db.empty:
                             dy = db.iloc[0].get("dv_ratio", 0) or 0
                             if dy == 0:

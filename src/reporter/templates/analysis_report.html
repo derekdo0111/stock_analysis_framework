@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ name }} ({{ ts_code }}) — 龟龟投资策略分析报告</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --card-bg: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --text-secondary: #8b949e;
+            --accent: #58a6ff;
+            --green: #3fb950;
+            --yellow: #d29922;
+            --red: #f85149;
+            --purple: #a371f7;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+        .container { max-width: 960px; margin: 0 auto; }
+        h1 { font-size: 1.8rem; margin-bottom: 0.25rem; }
+        .ts-code { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.5rem; }
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .card h2 {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+        table { width: 100%; border-collapse: collapse; }
+        th, td {
+            text-align: left;
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+        th { color: var(--text-secondary); font-weight: 500; font-size: 0.85rem; }
+        .score-good { color: var(--green); font-weight: bold; }
+        .score-medium { color: var(--yellow); font-weight: bold; }
+        .score-bad { color: var(--red); font-weight: bold; }
+        .pool-core { background: rgba(63,185,80,0.15); color: var(--green); padding: 0.25rem 0.75rem; border-radius: 4px; font-weight: bold; }
+        .pool-observe { background: rgba(210,153,34,0.15); color: var(--yellow); padding: 0.25rem 0.75rem; border-radius: 4px; font-weight: bold; }
+        .pool-reserve { background: rgba(248,81,73,0.15); color: var(--red); padding: 0.25rem 0.75rem; border-radius: 4px; font-weight: bold; }
+        .analysis-section { white-space: pre-wrap; font-size: 0.9rem; line-height: 1.8; }
+        .verify-pass { color: var(--green); }
+        .verify-warn { color: var(--yellow); }
+        .verify-critical { color: var(--red); }
+        .footer {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <h1>{{ name }}</h1>
+    <div class="ts-code">{{ ts_code }} · 龟龟投资策略 v0.18</div>
+
+    <!-- 评分概览 -->
+    <div class="card">
+        <h2>评分概览 <span class="pool-{{ pool }}">{{ pool }}</span></h2>
+        <table>
+            <tr>
+                <th>层级</th><th>得分</th><th>满分</th><th>占比</th>
+            </tr>
+            <tr>
+                <td>L2 初筛</td>
+                <td>{{ "%.1f"|format(l2_score) }}</td>
+                <td>20</td>
+                <td>{{ "%.0f"|format(l2_score / 20 * 100) }}%</td>
+            </tr>
+            <tr>
+                <td>L3 商业模式</td>
+                <td>×{{ "%.1f"|format(l3_multiplier) }}</td>
+                <td>—</td>
+                <td>乘数</td>
+            </tr>
+            <tr>
+                <td>L4 穿透回报率</td>
+                <td>{{ "%.1f"|format(l4_score) }}</td>
+                <td>40</td>
+                <td>{{ "%.0f"|format((l4_score / 40 * 100) if l4_score else 0) }}%</td>
+            </tr>
+            <tr>
+                <td>L5 安全边际</td>
+                <td>{{ "%.1f"|format(l5_score) }}</td>
+                <td>25</td>
+                <td>{{ "%.0f"|format((l5_score / 25 * 100) if l5_score else 0) }}%</td>
+            </tr>
+            <tr>
+                <td><strong>原始总分</strong></td>
+                <td><strong>{{ "%.1f"|format(raw_total) }}</strong></td>
+                <td>85</td>
+                <td>{{ "%.0f"|format(raw_total / 85 * 100) }}%</td>
+            </tr>
+            <tr style="background: rgba(88,166,255,0.08);">
+                <td><strong>最终得分</strong></td>
+                <td class="{% if final_score >= 75 %}score-good{% elif final_score >= 55 %}score-medium{% else %}score-bad{% endif %}">
+                    <strong>{{ "%.1f"|format(final_score) }}</strong>
+                </td>
+                <td>—</td>
+                <td></td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- PR 详情 -->
+    <div class="card">
+        <h2>穿透回报率详情</h2>
+        <table>
+            <tr><th>指标</th><th>值</th></tr>
+            <tr><td>穿透回报率 (PR)</td><td>{{ "%.2f"|format(pr_pct * 100) }}%</td></tr>
+            <tr><td>OE 质量标签</td><td>{{ oe_quality }}</td></tr>
+        </table>
+    </div>
+
+    <!-- 分析 Agent 输出 -->
+    {% if analysis %}
+    <div class="card">
+        <h2>分析 Agent (CFA)</h2>
+        <div class="analysis-section">{{ analysis }}</div>
+    </div>
+    {% endif %}
+
+    <!-- 验证 Agent 输出 -->
+    {% if verification %}
+    <div class="card">
+        <h2>验证 Agent (CPA+CFE)</h2>
+        <div class="analysis-section">{{ verification }}</div>
+    </div>
+    {% endif %}
+
+    <div class="footer">
+        龟龟投资策略框架 v0.18 · 数据来源: Tushare · 生成时间: {{ now }}
+    </div>
+
+</div>
+</body>
+</html>
