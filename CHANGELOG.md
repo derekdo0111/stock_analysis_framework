@@ -1,5 +1,21 @@
 # Changelog
 
+## [v0.21] - 2026-06-02 — 分配比率外推循环悖论修正
+
+### Fixed
+- **分配比率外推循环悖论**: DC 公式包含年末 money_cap，该值已被当年分红抽走。外推 `ratio = total_div / DC` 造成：分红越多 → 年末现金越少 → DC 越小 → ratio 虚高（早年可达 133%）
+- 修正：`_extrapolate_from_history()` 中 `adjusted_dc = dc + total_div`（把分红加回年末现金），再用 `total_div / adjusted_dc` 算比率
+- ratio 天然 ≤ 100%，消除循环悖论，无需另存年初 money_cap
+
+
+## [v0.20] - 2026-06-02 — DC maintenance_capex 修正
+
+### Fixed
+- **DC 公式维护性 CAPEX 范围修正**: `c_pay_acq_const_fiolta`（购建固定资产、无形资产及其他长期资产支付的现金）替代 `stot_out_inv_act`（投资活动现金流出总计）
+- 只扣维持性 CAPEX（建厂、买设备），不再扣所有投资流出（含短期理财、参股等金融投资）
+- 参股/并购→长期股权投资→不被加回（永久扣掉）；短期理财→交易性金融资产→末尾加回（净效果为零）
+
+
 ## [v0.19] - 2026-06-01 — PR 公式第三次修正：前瞻性穿透回报率
 
 ### Added
