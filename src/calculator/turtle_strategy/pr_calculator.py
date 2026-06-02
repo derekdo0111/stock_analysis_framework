@@ -1,14 +1,15 @@
 """
-穿透回报率 (Penetration Return) 计算器 — v0.21。
+穿透回报率 (Penetration Return) 计算器 — v0.22。
 
-PR = (当前可支配现金 × 分配比率 × 0.90 + 回购注销金额) / 最新收盘总市值
+PR = (当前可支配现金 × 分配比率 + 回购注销金额) / 最新收盘总市值
 
+v0.22: 去除安全边际系数和红利税折扣，PR 直接反映数学真实回报。
+       分配比率二档改为 mean(分红/净利润) 算术平均。
 v0.21: 分配比率外推加回分红后计算，避免 money_cap 被分红抽干导致 ratio 虚高。
-v0.20: DC 改用 maintenance_capex(c_pay_acq_const_fiolta) 替代 stot_out_inv_act。
 
 流程:
 1. 计算当前可支配现金（DisposableCashCalculator）
-2. 确定分配比率（一档：公告承诺×0.8 / 二档：历史外推×0.7）
+2. 确定分配比率（一档：公告承诺 / 二档：历史分红/净利润算术平均）
 3. 获取回购注销金额（Web+LLM提取）
 4. 获取最新总市值
 5. PR 计算
@@ -32,7 +33,7 @@ from src.rules.loader import load_rules
 
 @dataclass
 class PRCalculationResult:
-    """穿透回报率计算结果 — v0.21。"""
+    """穿透回报率计算结果 — v0.22。"""
 
     ts_code: str
     pr_pct: float = 0.0  # PR (%)
@@ -64,13 +65,14 @@ class PRCalculationResult:
 
 
 class PRCalculator:
-    """穿透回报率计算器 — v0.21。
+    """穿透回报率计算器 — v0.22。
 
-    PR = (当前可支配现金 × 分配比率 × 0.90 + 回购注销金额) / 最新总市值
+    PR = (当前可支配现金 × 分配比率 + 回购注销金额) / 最新总市值
     所有数据从 StockDataBundle 读取。
 
+    v0.22: 去除安全边际系数(×0.7/0.8)和红利税折扣(×0.9)，
+           PR 直接反映数学真实回报。分配比率二档改为 mean(分红/净利润)。
     v0.21: 分配比率外推加回分红后计算，避免 money_cap 被分红抽干导致 ratio 虚高。
-    v0.20: DC 改用 maintenance_capex(c_pay_acq_const_fiolta) 替代 stot_out_inv_act。
     """
 
     def __init__(self, bundle: StockDataBundle):
@@ -101,9 +103,9 @@ class PRCalculator:
         # ── Step 4: 最新总市值 ──
         result.current_market_cap = self._get_latest_market_cap(ts_code)
 
-        # ── Step 5: PR 计算 ──
-        dividend_tax = self._tax_cfg.dividend_withholding  # 0.10
-        distributable = result.disposable_cash * (result.distribution_ratio / 100) * (1 - dividend_tax)
+        # ── Step 5: PR 计算（v0.22: 无税率折扣，真实数学回报）──
+        # 注：持股<1月需缴10%红利税，不在PR中预先扣除，报告备注
+        distributable = result.disposable_cash * (result.distribution_ratio / 100)
 
         if result.current_market_cap > 0:
             result.pr_pct = round(
@@ -148,19 +150,18 @@ class PRCalculator:
     def _determine_distribution_ratio(
         self, ts_code: str, dc_result: DisposableCashResult
     ) -> tuple[float, str]:
-        """确定分配比率。
+        """确定分配比率（v0.22: 无安全边际折扣）。
 
-        一档（优先）：公告分红承诺 × 0.8（安全边际）
-        二档（降级）：历史(分红/可支配现金)中位数 × 0.7
+        一档（优先）：公告分红承诺（原值，不打折）
+        二档（降级）：历史 mean(分红/净利润) 算术平均
 
         Returns:
             (ratio, source)
         """
-        # 一档：公告承诺
+        # 一档：公告承诺（v0.22: 不再 × 0.8）
         commitment = getattr(self._bundle, "dividend_commitment", None)
         if commitment and commitment.has_commitment and commitment.ratio:
-            ratio = commitment.ratio * 0.8
-            return round(ratio, 2), "tier1_commitment"
+            return round(commitment.ratio, 2), "tier1_commitment"
 
         # 二档：历史外推
         ratio = self._extrapolate_from_history(ts_code, dc_result)
@@ -169,45 +170,50 @@ class PRCalculator:
     def _extrapolate_from_history(
         self, ts_code: str, dc_result: DisposableCashResult
     ) -> float:
-        """二档外推：历史(年度分红总额 / 年度可支配现金) 中位数 × 0.7。
+        """二档外推（v0.22）: 历史 mean(年度分红总额 / 年度净利润) 算术平均。
 
-        若数据不足，退回到历史(分红/净利润)中位数 × 0.7。
+        改用净利润做分母（独立于 DC，无循环依赖），算数平均（等权）。
+
+        若数据不足，退回到 fallback（同逻辑但更保守）。
         """
         try:
-            if not dc_result.historical:
-                return self._fallback_dividend_ratio()
-
-            # 年度分红汇总
             div_df = self._bundle.dividend
+            income_df = self._bundle.income
+
+            if div_df.empty or income_df.empty:
+                return 30.0  # 行业默认值
+
+            # 年度分红汇总（每股）—— 只取「实施」，避免同一分红在
+            # 「股东大会通过」和「实施」两条记录中被重复计数
             annual_divs: dict[int, float] = {}
             if not div_df.empty and "end_date" in div_df.columns:
                 for _, row in div_df.iterrows():
                     proc = str(row.get("div_proc", ""))
-                    if proc not in ("实施", "股东大会通过"):
+                    if proc != "实施":
                         continue
                     year = int(str(row.get("end_date", ""))[:4])
                     cash_per_share = float(row.get("cash_div_tax", 0) or row.get("cash_div", 0))
                     annual_divs[year] = annual_divs.get(year, 0) + cash_per_share
 
-            # 逐年计算 分红总额/可支配现金
-            ratios = []
-            for i, dc in enumerate(dc_result.historical):
-                if dc <= 0:
-                    continue
-                # 估算年份
-                year = datetime.now().year - 1 - i
-                if year in annual_divs:
-                    # 需要总股本推算总分红
-                    total_share = self._get_year_end_total_share(ts_code, year)
-                    if total_share > 0:
-                        total_div = annual_divs[year] * total_share  # 万元
-                        # v0.21: 加回分红后计算分配比率，避免 money_cap 被分红抽干导致虚高
-                        adjusted_dc = dc + total_div
-                        ratios.append(total_div / adjusted_dc * 100)
+            # 取近5年利润表年末数据（去重，Tushare 可能返回重复行）
+            income_yearly = income_df[income_df["end_date"].astype(str).str.endswith("1231")].drop_duplicates(
+                subset=["end_date"]
+            ).sort_values("end_date", ascending=False).head(5)
 
-            if ratios:
-                median_ratio = float(np.median(ratios))
-                return median_ratio * 0.7
+            payout_ratios = []
+            for _, row in income_yearly.iterrows():
+                year = int(str(row.get("end_date", ""))[:4])
+                np_val = float(row.get("n_income") or 0) / 1e4  # 元→万元
+                if np_val <= 0 or year not in annual_divs:
+                    continue
+                total_share = self._get_year_end_total_share(ts_code, year)
+                if total_share <= 0:
+                    continue
+                total_div = annual_divs[year] * total_share  # 万元
+                payout_ratios.append(total_div / np_val * 100)
+
+            if payout_ratios:
+                return float(np.mean(payout_ratios))  # v0.22: 算术平均，无安全边际
 
         except Exception:
             pass
@@ -215,7 +221,7 @@ class PRCalculator:
         return self._fallback_dividend_ratio()
 
     def _fallback_dividend_ratio(self) -> float:
-        """退路：用历史派息率（分红/净利润）中位数 × 0.7。"""
+        """退路（v0.22）: 历史 mean(分红/净利润) 算术平均。"""
         try:
             div_df = self._bundle.dividend
             income_df = self._bundle.income
@@ -231,7 +237,7 @@ class PRCalculator:
             total_shares: dict[int, float] = {}
             for _, row in div_df.iterrows():
                 proc = str(row.get("div_proc", ""))
-                if proc not in ("实施", "股东大会通过"):
+                if proc != "实施":
                     continue
                 year = int(str(row.get("end_date", ""))[:4])
                 annual_divs[year] = annual_divs.get(year, 0) + float(row.get("cash_div_tax", 0) or row.get("cash_div", 0))
@@ -239,7 +245,7 @@ class PRCalculator:
             payout_ratios = []
             for _, row in income_yearly.iterrows():
                 year = int(str(row.get("end_date", ""))[:4])
-                np_val = float(row.get("n_income") or 0)
+                np_val = float(row.get("n_income") or 0) / 1e4  # 元→万元
                 if np_val <= 0 or year not in annual_divs:
                     continue
                 total_share = self._get_year_end_total_share(self._bundle.ts_code, year)
@@ -249,7 +255,7 @@ class PRCalculator:
                 payout_ratios.append(total_div / np_val * 100)
 
             if payout_ratios:
-                return float(np.median(payout_ratios)) * 0.7
+                return float(np.mean(payout_ratios))  # v0.22: 算术平均，无安全边际
 
         except Exception:
             pass
@@ -304,7 +310,10 @@ class PRCalculator:
         return 0.0
 
     def _get_year_end_total_share(self, ts_code: str, year: int) -> float:
-        """获取年末总股本（万股）。"""
+        """获取年末总股本（万股）。
+
+        降级策略: 1231 → 前14天递减 → 该年任意交易日
+        """
         try:
             end_date = f"{year}1231"
             df = self._bundle.daily_basic
@@ -323,13 +332,25 @@ class PRCalculator:
                 if day < 1:
                     break
                 alt_date = f"{year}12{day:02d}"
-                row = self._bundle.daily_basic[self._bundle.daily_basic["trade_date"].astype(str) == alt_date]
+                row = df[df["trade_date"].astype(str) == alt_date]
                 if not row.empty:
                     ts = row.iloc[0].get("total_share")
                     if ts and float(ts) > 0:
                         return float(ts)
             except Exception:
                 continue
+
+        # fallback 2: 该年任意交易日
+        try:
+            df_year = df[df["trade_date"].astype(str).str.startswith(str(year))]
+            df_year = df_year.sort_values("trade_date", ascending=False)
+            if not df_year.empty:
+                ts = df_year.iloc[0].get("total_share")
+                if ts and float(ts) > 0:
+                    return float(ts)
+        except Exception:
+            pass
+
         return 0.0
 
     # ── 阈值打分 ──────────────────────────────────────────

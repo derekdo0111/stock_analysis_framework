@@ -147,7 +147,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
   <h1>{{ name }} <span style="color:var(--text-dim);font-size:0.7em;">{{ ts_code }}</span></h1>
   <div class="score">{{ final_score }}</div>
   <span class="pool-tag {{ pool_class }}">{{ pool }}</span>
-  <div style="margin-top:8px;color:var(--text-dim);font-size:0.85rem;">龟龟投资策略 v0.19 · {{ generated_at }}</div>
+  <div style="margin-top:8px;color:var(--text-dim);font-size:0.85rem;">龟龟投资策略 v0.22 · {{ generated_at }}</div>
 </div>
 
 <!-- ====== 1. HardGate 否决检查 ====== -->
@@ -189,8 +189,8 @@ _TEMPLATE = r"""<!DOCTYPE html>
   </div>
 </div>
 
-<!-- ====== 3. OE 路径B + PR 穿透回报率 (v0.19) ====== -->
-<h2>3. 穿透回报率 (L4) — v0.19 前瞻公式</h2>
+<!-- ====== 3. OE 路径B + PR 穿透回报率 (v0.22) ====== -->
+<h2>3. 穿透回报率 (L4) — v0.22 真实数学回报</h2>
 <div class="grid">
   <div class="card">
     <h3>OE 概要 (路径B)</h3>
@@ -212,27 +212,22 @@ _TEMPLATE = r"""<!DOCTYPE html>
   </div>
 </div>
 
-<h3>v0.19 PR 公式展开</h3>
+<h3>v0.22 PR 公式展开</h3>
 <div class="card" style="overflow-x:auto;">
   <div style="font-size:0.85rem;color:var(--accent);margin-bottom:12px;">
-    PR = (可支配现金 &times; 分配比率 &times; 0.90 + 回购注销) / 当前市值
+    PR = (可支配现金 &times; 分配比率 + 回购注销) / 当前市值
   </div>
   <table>
     <tr><th>组件</th><th>值</th><th>来源</th></tr>
     <tr>
       <td>当前可支配现金</td>
       <td>{{ pr_disposable_cash }} 亿</td>
-      <td style="color:var(--text-dim);">经营CF - 投资流出 - 财务费用 + 货币资金 - 限制性货币 - 短期借款 + 交易性金融资产</td>
+      <td style="color:var(--text-dim);">经营CF - 维持性CAPEX - 并购子公司 - 参股净增 - 财务费用 + 货币资金 - 限制性货币 - 短期借款 + 交易性金融资产</td>
     </tr>
     <tr>
       <td>分配比率</td>
       <td>{{ pr_distribution_ratio }}%</td>
       <td style="color:var(--text-dim);">{{ pr_distribution_source }}</td>
-    </tr>
-    <tr>
-      <td>红利税率</td>
-      <td>10%</td>
-      <td style="color:var(--text-dim);">A股红利税默认10%</td>
     </tr>
     <tr>
       <td>回购注销金额</td>
@@ -245,6 +240,9 @@ _TEMPLATE = r"""<!DOCTYPE html>
       <td></td>
     </tr>
   </table>
+  <div style="margin-top:12px;padding:10px 14px;background:#3a2a0a;border-left:3px solid var(--yellow);border-radius:6px;font-size:0.82rem;color:var(--yellow);">
+    注：持股不足1个月需缴纳10%红利税，PR 未预先扣除。
+  </div>
 </div>
 
 <!-- ====== 4. L5 安全边际 ====== -->
@@ -359,7 +357,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
 {% endif %}
 
 <div class="footer">
-  龟龟投资策略框架 v0.19 · 本报告仅供研究参考，不构成投资建议。<br>
+  龟龟投资策略框架 v0.22 · 本报告仅供研究参考，不构成投资建议。<br>
   生成时间: {{ generated_at }}
 </div>
 </body></html>"""

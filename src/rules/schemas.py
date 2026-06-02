@@ -394,7 +394,7 @@ class SOTPConfig(BaseModel):
 
 class TaxConfig(BaseModel):
     corporate_income_tax: float = 0.25
-    dividend_withholding: float = 0.10
+    dividend_withholding: float = 0.0  # v0.22: 股息红利税不再从PR中预扣
 
 
 # --- 3i. Company Classification ---

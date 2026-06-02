@@ -1,12 +1,14 @@
 """
-可支配现金 — v0.20 PR 公式的核心输入。
+可支配现金 — v0.22 PR 公式的核心输入。
 
-真实可支配现金 = 经营CF净额 - 维持性CAPEX - 财务费用
+真实可支配现金 = 经营CF净额 - 维持性CAPEX - 并购子公司支付的现金 - 参股净增额 - 财务费用
                 + 货币资金 - 限制性货币 - 短期借款 + 交易性金融资产
 
 维持性CAPEX = 购建固定资产、无形资产支付的现金(c_pay_acq_const_fiolta)
-              替代 v0.19 的「投资活动现金流出小计」以免将买理财等可逆资金配置
-              误判为永久性资本消耗。
+参股净增额 = max(0, 年末长期股权投资 - 年初长期股权投资)
+并购子公司 = c_pay_acq_subsidiary
+
+v0.22: 新增扣除并购子公司和参股净增额，将所有成长性投入都减去。
 
 所有数据从 StockDataBundle 读取，计算由 DisposableCashCalculator 执行。
 """
@@ -37,6 +39,11 @@ class DisposableCashResult:
     # 公式展开（用于报告展示）
     formula_parts: dict[str, float] = field(default_factory=dict)
 
+    # v0.22 新增: 参股净增额明细
+    equity_invest_prev: float = 0.0   # 年初长期股权投资
+    equity_invest_current: float = 0.0  # 年末长期股权投资
+    equity_invest_increase: float = 0.0  # max(0, current - prev)
+
     @property
     def median_5y(self) -> float:
         """5年历史中位数。"""
@@ -55,6 +62,8 @@ class DisposableCashResult:
         return (
             f"经营CF({parts.get('op_cf', 0):.0f}万)"
             f" - 维持性CAPEX({parts.get('maintenance_capex', 0):.0f}万)"
+            f" - 并购子公司({parts.get('acq_subsidiary', 0):.0f}万)"
+            f" - 参股净增({parts.get('equity_invest_increase', 0):.0f}万)"
             f" - 财务费用({parts.get('fin_expense', 0):.0f}万)"
             f" + 货币资金({parts.get('money_cap', 0):.0f}万)"
             f" - 限制性货币({parts.get('restricted', 0):.0f}万)"
@@ -108,6 +117,8 @@ class DisposableCashCalculator:
             dc_current = (
                 current.get("op_cf", 0)
                 - current.get("maintenance_capex", 0)
+                - current.get("acq_subsidiary", 0)
+                - current.get("equity_invest_increase", 0)
                 - current.get("fin_expense", 0)
                 + current.get("money_cap", 0)
                 - restricted_cash
@@ -116,9 +127,15 @@ class DisposableCashCalculator:
             )
             result.current = round(dc_current, 2)
 
+            result.equity_invest_prev = current.get("ltei_prev", 0)
+            result.equity_invest_current = current.get("ltei_current", 0)
+            result.equity_invest_increase = current.get("equity_invest_increase", 0)
+
             result.formula_parts = {
                 "op_cf": current.get("op_cf", 0),
                 "maintenance_capex": current.get("maintenance_capex", 0),
+                "acq_subsidiary": current.get("acq_subsidiary", 0),
+                "equity_invest_increase": current.get("equity_invest_increase", 0),
                 "fin_expense": current.get("fin_expense", 0),
                 "money_cap": current.get("money_cap", 0),
                 "restricted": restricted_cash,
@@ -150,12 +167,21 @@ class DisposableCashCalculator:
 
                         op_cf = (cf_row.get("n_cashflow_act") or 0) / 1e4  # 元→万元
                         maintenance_capex = (cf_row.get("c_pay_acq_const_fiolta") or 0) / 1e4
+                        acq_subsidiary = (cf_row.get("c_pay_acq_subsidiary") or 0) / 1e4
 
                         # 匹配同年度资产负债表
                         bs_row = bs_yearly[bs_yearly["end_date"].astype(str) == end_date]
                         money_cap = (float(bs_row.iloc[0].get("money_cap") or 0) if not bs_row.empty else 0) / 1e4
                         st_borr = (float(bs_row.iloc[0].get("st_borrow") or 0) if not bs_row.empty else 0) / 1e4
                         trad_assets_val = (float(bs_row.iloc[0].get("tradable_fin_assets") or 0) if not bs_row.empty else 0) / 1e4
+                        ltei_current = (float(bs_row.iloc[0].get("long_term_equity_invest") or 0) if not bs_row.empty else 0) / 1e4
+
+                        # 参股净增额: 对比上年
+                        ltei_prev = 0.0
+                        if i + 1 < len(bs_yearly):
+                            prev_bs_row = bs_yearly.iloc[i + 1]
+                            ltei_prev = float(prev_bs_row.get("long_term_equity_invest") or 0) / 1e4
+                        equity_invest_increase = max(0.0, ltei_current - ltei_prev)
 
                         # 匹配同年度利润表
                         inc_row = income_yearly[income_yearly["end_date"].astype(str) == end_date]
@@ -166,7 +192,8 @@ class DisposableCashCalculator:
                         est_restricted = money_cap * restricted_ratio if money_cap > 0 else 0
 
                         dc_year = (
-                            op_cf - maintenance_capex - fin_expense
+                            op_cf - maintenance_capex - acq_subsidiary
+                            - equity_invest_increase - fin_expense
                             + money_cap - est_restricted
                             - st_borr + trad_assets_val
                         )
@@ -205,12 +232,21 @@ class DisposableCashCalculator:
 
             op_cf = float(cf_row.get("n_cashflow_act") or 0) / 1e4  # 元→万元
             maintenance_capex = float(cf_row.get("c_pay_acq_const_fiolta") or 0) / 1e4  # 元→万元
+            acq_subsidiary = float(cf_row.get("c_pay_acq_subsidiary") or 0) / 1e4  # 元→万元
 
-            # 资产负债表匹配
+            # 资产负债表匹配（当前年度）
             bs_row = bs_yearly[bs_yearly["end_date"].astype(str) == end_date]
             money_cap = (float(bs_row.iloc[0].get("money_cap") or 0) if not bs_row.empty else 0) / 1e4  # 元→万元
             st_borr = (float(bs_row.iloc[0].get("st_borrow") or 0) if not bs_row.empty else 0) / 1e4
             trad_assets = (float(bs_row.iloc[0].get("tradable_fin_assets") or 0) if not bs_row.empty else 0) / 1e4
+            ltei_current = (float(bs_row.iloc[0].get("long_term_equity_invest") or 0) if not bs_row.empty else 0) / 1e4
+
+            # 资产负债表匹配（上一年度，用于参股净增额）
+            ltei_prev = 0.0
+            if len(bs_yearly) >= 2:
+                bs_row_prev = bs_yearly.iloc[1]
+                ltei_prev = float(bs_row_prev.get("long_term_equity_invest") or 0) / 1e4
+            equity_invest_increase = max(0.0, ltei_current - ltei_prev)
 
             # 利润表匹配
             inc_row = income_yearly[income_yearly["end_date"].astype(str) == end_date]
@@ -219,6 +255,10 @@ class DisposableCashCalculator:
             return {
                 "op_cf": op_cf,
                 "maintenance_capex": maintenance_capex,
+                "acq_subsidiary": acq_subsidiary,
+                "equity_invest_increase": equity_invest_increase,
+                "ltei_current": ltei_current,
+                "ltei_prev": ltei_prev,
                 "fin_expense": fin_expense,
                 "money_cap": money_cap,
                 "st_borr": st_borr,

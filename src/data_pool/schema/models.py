@@ -304,7 +304,7 @@ class OEQualityLabel(BaseModel):
 
 
 class PenetrationReturnResult(BaseModel):
-    """穿透回报率计算结果 — v0.19: PR = (可支配现金 × 分配比率 × 0.9 + 回购注销) / 当前市值。"""
+    """穿透回报率计算结果 — v0.22: PR = (可支配现金 × 分配比率 + 回购注销) / 当前市值。"""
     ts_code: str
     oe_cf_median: float = 0.0
     pr_pct: float = Field(default=0.0, description="PR (%)")
