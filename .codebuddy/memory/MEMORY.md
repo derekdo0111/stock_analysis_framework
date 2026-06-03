@@ -20,8 +20,14 @@
 - 用户于 2026-06-01 发现 agent 在解释回测流程时编造了茅台分红数据（实际应调用 Tushare dividend 接口获取），此为严重错误，写入铁律防止再犯
 
 ### stock-analysis-framework (D:\project\stock-analysis-framework\)
-- 龟龟投资策略 v0.21，Python 3.9+ / Poetry / Pydantic v2 / Pandas / Tushare / akshare / pdfplumber / Jinja2 / loguru / tenacity
-- 阶段一~五完成，162测试/80%+覆盖率
+- 龟龟投资策略 v0.23，Python 3.11+ / Pydantic v2 / Pandas / Tushare / Jinja2 / loguru / tenacity
+- 阶段一~五完成，162 测试
+- v0.23 核心公式: **Final = L3(30pt) + L4(45pt) + L5(25pt) = 100pt** (加法百分制)
+- L3: 十二维商业模式评估 (盈利能力5+成熟度3+资本纪律2+治理2), 每维0-2分, 满分24→30
+- L4: 穿透回报率, 内部满分40缩放至45
+- L5: 纯估值安全边际 (估值安全边际率15 + 下行缓冲5 + 仓位5), 折现率7%
+- L2 降级为纯门控, 不参与最终评分
+- 分池阈值: 核心≥75, 观察50-74, 备选<50
 - GitHub: https://github.com/derekdo0111/stock_analysis_framework (main 分支)
 - 核心理念：确定性计算(Python)与智能判断(LLM)彻底分离
 - 所有规则存储在 YAML 中，代码不做硬编码阈值

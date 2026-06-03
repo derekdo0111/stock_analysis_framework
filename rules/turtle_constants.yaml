@@ -1,26 +1,20 @@
-# 龟龟策略常量配置 v0.22
-# 包含：OE计算(单路径)、CAPEX系数(资产轻重评估)、穿透回报率(v0.22真实数学回报)、OE质量四级验证、安全边际仓位矩阵、价值陷阱、SOTP、税率等
+# 龟龟策略常量配置 v0.23
+# 核心变更: L3 十二维商业模式评估(加法,0-30pt) / L5 纯估值安全边际(0-25pt)
+# 公式: Final = L3 + L4 + L5 = 100pt
 
 # =====================================================================
-# 一、Owners' Earnings — 单路径计算 (v0.19: 删除路径A)
+# 一、Owners' Earnings — 单路径计算
 # =====================================================================
 owners_earnings:
-  # ─── 路径 B（唯一路径）：现金流视角 OE ───
-  # OE_cf = 经营性现金流净额 - 总CAPEX × 维持性CAPEX系数
   cashflow_path:
     formula: "net_operating_cf - (purchase_fixed_assets * maintenance_coefficient)"
     role: "OE质量验证的输入，取5年中位数"
 
-  # --------------------
-  # 维持性CAPEX系数 — 资产轻重三因子评估法
-  # 最终系数 = 行业先验 × 0.4 + 资产轻重得分 × 0.6
-  # --------------------
   maintenance_capex_coefficient:
     prior_weight: 0.4
     asset_intensity_weight: 0.6
     fallback: "数据不足时使用行业先验 100% 权重"
 
-    # 因子A: 行业先验系数（权重40%）
     industry_priors:
       consumer_staples: 0.45
       consumer_discretionary: 0.50
@@ -34,35 +28,28 @@ owners_earnings:
       telecom: 0.70
       default: 0.60
 
-    # 因子B: 资产轻重评估（权重60%，三个指标各占1/3）
     asset_intensity_indicators:
-      # 指标1: CAPEX/营收（5年均值）
       capex_to_revenue:
         formula: "购建固定资产无形资产支付的现金 / 营业总收入 (5年均值)"
         scoring:
-          light:   { max: 3,    score: 0.35 }   # 轻资产: <3%
-          medium:  { min: 3,    max: 8,  score: 0.55 }   # 中资产: 3~8%
-          heavy:   { min: 8,    score: 0.75 }   # 重资产: >8%
-      # 指标2: 固定资产周转率
+          light:   { max: 3,    score: 0.35 }
+          medium:  { min: 3,    max: 8,  score: 0.55 }
+          heavy:   { min: 8,    score: 0.75 }
       fixed_asset_turnover:
         formula: "营业总收入 / 固定资产净值"
         scoring:
-          light:   { min: 5,    score: 0.35 }   # 轻资产: >5
-          medium:  { min: 2,    max: 5,  score: 0.55 }   # 中资产: 2~5
-          heavy:   { max: 2,    score: 0.75 }   # 重资产: <2
-      # 指标3: 折旧/营收（5年均值）
+          light:   { min: 5,    score: 0.35 }
+          medium:  { min: 2,    max: 5,  score: 0.55 }
+          heavy:   { max: 2,    score: 0.75 }
       depreciation_to_revenue:
         formula: "折旧 / 营业总收入 (5年均值)"
         scoring:
-          light:   { max: 2,    score: 0.35 }   # 轻资产: <2%
-          medium:  { min: 2,    max: 5,  score: 0.55 }   # 中资产: 2~5%
-          heavy:   { min: 5,    score: 0.75 }   # 重资产: >5%
+          light:   { max: 2,    score: 0.35 }
+          medium:  { min: 2,    max: 5,  score: 0.55 }
+          heavy:   { min: 5,    score: 0.75 }
 
-  # --------------------
-  # OE 质量标签（三级前置，在 PR 计算前生效）
-  # --------------------
   quality_label:
-    description: "OE质量标签在PR计算前生效，决定OE的可信度级别"
+    description: "OE质量标签在PR计算前生效"
     trusted:
       label: "🟢 可信"
       condition: "OE_cf/净利润 ≥ 0.8 AND OE_cf CV ≤ 0.3"
@@ -74,226 +61,269 @@ owners_earnings:
     unreliable:
       label: "🔴 不可靠"
       condition: "OE_cf/净利润 < 0.5 OR OE_cf CV > 0.5"
-      action: "不使用 PR，L4 = 0，由 Agent 另行定性评估"
+      action: "不使用 PR，L4 = 0"
 
-  # --------------------
-  # OE 质量四级验证（在 PR 得分计算后扣分）
-  # v0.19: 删除 profit_to_cash_conversion（路径A已删）
-  # --------------------
   quality_checks:
     oe_to_profit_ratio:
-      description: "OE_cf/净利润 5年中位数 — 检验净利润含金量"
+      description: "OE_cf/净利润 5年中位数"
       thresholds:
-        - { min: 0.8,  penalty: 0 }                           # 含金量优秀
-        - { min: 0.5,  max: 0.8, penalty: 3 }                  # 含金量一般
-        - { max: 0.5,  penalty: 5,  red_flag: true }           # 含金量严重不足
+        - { min: 0.8,  penalty: 0 }
+        - { min: 0.5,  max: 0.8, penalty: 3 }
+        - { max: 0.5,  penalty: 5,  red_flag: true }
 
     oe_stability:
-      description: "OE_cf变异系数(std/mean × 100%) — 检验OE稳定性（替代旧版HH偏差）"
+      description: "OE_cf变异系数(std/mean × 100%)"
       thresholds:
-        - { max: 0.3,  penalty: 0 }                            # 稳定
-        - { min: 0.3,  max: 0.5, penalty: 2 }                  # 中等波动
-        - { min: 0.5,  penalty: 4 }                             # 剧烈波动
+        - { max: 0.3,  penalty: 0 }
+        - { min: 0.3,  max: 0.5, penalty: 2 }
+        - { min: 0.5,  penalty: 4 }
 
     oe_trend:
-      description: "近3年OE_cf CAGR — 检验OE趋势"
+      description: "近3年OE_cf CAGR"
       thresholds:
-        - { min: 0,    penalty: 0 }                             # 持平或增长
-        - { max: 0,    penalty: 3 }                             # 持续下降
+        - { min: 0,    penalty: 0 }
+        - { max: 0,    penalty: 3 }
 
     bs_consistency:
-      description: "Σ5年OE_cf vs 5年净现金变化差异 — 检验现金去向"
-      threshold_pct: 30                                         # 差异超过30%触发
+      description: "Σ5年OE_cf vs 5年净现金变化差异"
+      threshold_pct: 30
       penalty: 3
       logic: |
         累积OE_5年 = sum(每年OE_cf)
         净现金变化_5年 = (现金_now - 有息负债_now) - (现金_5年前 - 有息负债_5年前)
         不可解释差异 = 累积OE_5年 - 净现金变化_5年 - 分红总额 - 回购总额
-        如果 不可解释差异 / 累积OE_5年 > 30% → 扣3分（现金去向不明）
+        如果 不可解释差异 / 累积OE_5年 > 30% → 扣3分
 
 # =====================================================================
-# 二、穿透回报率 — v0.22 真实数学回报
+# 二、穿透回报率 — v0.23 L4 (0-45pt)
 # =====================================================================
 penetration_return:
-  # PR = (当前可支配现金 × 分配比率 + 回购注销金额) / 最新收盘总市值
   formula: "(disposable_cash * distribution_ratio + buyback_cancellation) / latest_market_cap"
-  
-  # 可支配现金公式（v0.22: 扣除全部成长性投入）
   disposable_cash_formula: "经营CF净额 - 维持性CAPEX - 并购子公司 - max(0,年末长投-年初长投) - 财务费用 + 货币资金 - 限制性货币 - 短期借款 + 交易性金融资产"
-  
-  # 分配比率（v0.22: 无安全边际折扣）
+
   distribution_ratio:
     tier1:
       source: "公告分红承诺"
-      formula: "承诺值（原值，不再打折）"
+      formula: "承诺值（原值，不折旧）"
       search_keywords: ["分红承诺", "股东回报规划", "未来三年股东分红回报规划"]
     tier2:
       source: "历史分红/净利润算术平均"
       formula: "mean(近5年 年度分红总额 / 年度净利润)"
       note: "v0.22: 从 median(分红/DC)*0.7 改为 mean(分红/净利润)，消除循环依赖"
-  
-  # 回购
+
   buyback:
     source: "Web搜索+LLM提取 + Tushare降级"
     filter: "仅确认用于注销的回购"
     search_keywords: ["回购注销", "回购股份注销", "减少注册资本"]
 
-  # 三级阈值起点分
   thresholds:
-    - { min: 12.0,  starting_score: 20, label: "优秀" }        # PR ≥ 12% → 20分起点
-    - { min: 8.0,   starting_score: 15, label: "良好" }        # PR ≥ 8% → 15分起点
-    - { min: 5.0,   starting_score: 10, label: "及格" }        # PR ≥ 5% → 10分起点
-    - { max: 5.0,   starting_score: 0,  label: "不及格", action: "L4=0，Agent分析" }
+    - { min: 12.0,  starting_score: 20, label: "优秀" }
+    - { min: 8.0,   starting_score: 15, label: "良好" }
+    - { min: 5.0,   starting_score: 10, label: "及格" }
+    - { max: 5.0,   starting_score: 0,  label: "不及格", action: "L4=0" }
 
-  # OE 质量扣分：从起点分中扣除 quality_checks 的 penalty 总和
-  # 上限 40pt，下限 0
-  max_score: 40
+  max_score: 45  # v0.23: 40→45
 
-  # 设计哲学说明
   philosophy: |
-    穿透回报率回答的核心问题：「以当前市值买入，当前经营能力带来的回报率是多少？」
-    v0.22 去除安全边际系数(×0.8/0.7)和红利税折扣(×0.9)，PR 直接反映数学真实回报。
-    v0.19 将分母从历史市值改为当前市值，分子从历史分红改为前瞻可支配现金×分配比率。
-    这是一个前瞻估值——不依赖未来增长假设，衡量的是管理层资本配置纪律。
-    增长维度交给 L5 安全边际的「外推可行度」处理，不污染 PR 本身的纯粹性。
+    穿透回报率回答：「以当前市值买入，当前经营能力带来的回报率是多少？」
+    v0.23: L4 权重从 40→45pt，在百分制中占 45%。
+    PR 数学公式不变，只缩放输出。
 
 # =====================================================================
-# 三、安全边际 + 仓位矩阵（L5，满分25pt）
+# 三、L3 商业模式评估 — v0.23 十二维加法 (0-30pt)
+# =====================================================================
+business_model:
+  max_score: 30
+  max_dim_score: 24  # 12维 × 每维 max 2pt
+
+  # 12 维度定义
+  dimensions:
+    # ── 组一：盈利能力与质量 (5维) ──
+    - id: "roe_level"
+      name: "ROE水平"
+      group: "盈利能力"
+      description: "最新年报ROE(年化值)"
+      thresholds:
+        - { min: 20, score: 2, label: "优秀 ≥20%" }
+        - { min: 15, score: 1, label: "良好 ≥15%" }
+        - { max: 15, score: 0, label: "<15%" }
+
+    - id: "roe_stability"
+      name: "ROE稳定性"
+      group: "盈利能力"
+      description: "近5年ROE变异系数(CV=std/mean)"
+      thresholds:
+        - { max: 0.25, score: 2, label: "极稳 CV≤0.25" }
+        - { min: 0.25, max: 0.50, score: 1, label: "一般 0.25<CV≤0.50" }
+        - { min: 0.50, score: 0, label: "波动大 CV>0.50" }
+
+    - id: "roic_roe_gap"
+      name: "ROIC-ROE差距"
+      group: "盈利能力"
+      description: "|ROIC - ROE|，差距小说明ROE不靠杠杆吹"
+      thresholds:
+        - { max: 5, score: 2, label: "差距≤5pp" }
+        - { min: 5, max: 10, score: 1, label: "5~10pp" }
+        - { min: 10, score: 0, label: ">10pp 高杠杆嫌疑" }
+
+    - id: "gross_margin_level"
+      name: "毛利率水平"
+      group: "盈利能力"
+      description: "最新年报毛利率"
+      thresholds:
+        - { min: 40, score: 2, label: "优秀 ≥40%" }
+        - { min: 30, score: 1, label: "良好 ≥30%" }
+        - { max: 30, score: 0, label: "<30%" }
+
+    - id: "gross_margin_stability"
+      name: "毛利率稳定性"
+      group: "盈利能力"
+      description: "近5年毛利率变异系数"
+      thresholds:
+        - { max: 0.15, score: 2, label: "极稳 CV≤0.15" }
+        - { min: 0.15, max: 0.30, score: 1, label: "一般 0.15<CV≤0.30" }
+        - { min: 0.30, score: 0, label: "波动大 CV>0.30" }
+
+    # ── 组二：成熟度/扩张意愿 (3维) ──
+    - id: "capex_to_operating_cf"
+      name: "CAPEX/经营CF"
+      group: "成熟度"
+      description: "近5年(CAPEX÷经营CF)均值，≤40%说明不烧钱扩张"
+      thresholds:
+        - { max: 40, score: 2, label: "保守 ≤40%" }
+        - { min: 40, max: 70, score: 1, label: "一般 40~70%" }
+        - { min: 70, score: 0, label: "冒进 >70%" }
+
+    - id: "total_assets_cagr"
+      name: "总资产增速"
+      group: "成熟度"
+      description: "近5年总资产CAGR，≤10%说明没在大并购/建厂"
+      thresholds:
+        - { max: 10, score: 2, label: "稳健 ≤10%" }
+        - { min: 10, max: 20, score: 1, label: "中速 10~20%" }
+        - { min: 20, score: 0, label: "快速扩张 >20%" }
+
+    - id: "revenue_cagr"
+      name: "营收增速"
+      group: "成熟度"
+      description: "近3年营收CAGR，0~15%为成熟现金牛区间"
+      thresholds:
+        - { min: 0, max: 15, score: 2, label: "成熟 0~15%" }
+        - { min: 15, max: 25, score: 1, label: "成长期 15~25%" }
+        - { min: 25, score: 0, label: "高速扩张 >25%" }
+        - { max: 0, score: 0, label: "负增长" }
+
+    # ── 组三：资本配置纪律 (2维) ──
+    - id: "dividend_consistency"
+      name: "分红持续性"
+      group: "资本纪律"
+      description: "近5年每年payout≥30%且均值≥40%，稳定回馈股东"
+      thresholds:
+        - { condition: "all_years_30_mean_40", score: 2, label: "持续分钱" }
+        - { condition: "mean_payout_30", score: 1, label: "有分红" }
+        - { condition: "fail", score: 0, label: "不分/不稳定" }
+
+    - id: "share_count_trend"
+      name: "股本变动"
+      group: "资本纪律"
+      description: "近5年总股本变化率≤0%=不摊薄/回购注销"
+      thresholds:
+        - { max: 0, score: 2, label: "不摊薄/回购" }
+        - { min: 0, max: 5, score: 1, label: "轻微摊薄 <5%" }
+        - { min: 5, score: 0, label: "明显摊薄 ≥5%" }
+
+    # ── 组四：治理 (2维) ──
+    - id: "management_stability"
+      name: "管理层稳定性"
+      group: "治理"
+      description: "管理层长期稳定，无频繁变更"
+      thresholds:
+        - { condition: "stable", score: 2, label: "稳定" }
+        - { condition: "data_unavailable", score: 1, label: "数据不足" }
+        - { condition: "frequent_change", score: 0, label: "频繁变更" }
+
+    - id: "earnings_authenticity"
+      name: "盈利真实性"
+      group: "治理"
+      description: "近3年经营CF/净利润最小值，≥0.6=利润含金量够"
+      thresholds:
+        - { min: 0.8, score: 2, label: "含金量高 ≥0.8" }
+        - { min: 0.6, score: 1, label: "及格 ≥0.6" }
+        - { max: 0.6, score: 0, label: "含金量不足 <0.6" }
+
+  levels:
+    excellent: { min: 20, label: "优", description: "生意基因无瑕疵" }
+    good: { min: 14, label: "良", description: "大多数维度达标" }
+    medium: { min: 8, label: "中", description: "有显著瑕疵" }
+    poor: { max: 7, label: "差", description: "基因缺陷明显" }
+
+# =====================================================================
+# 四、安全边际 — v0.23 纯估值保护 (0-25pt)
 # =====================================================================
 margin_of_safety:
   max_score: 25
 
-  # 3.1 外推可行度评分（6维度，每维0-5分，满分30分）
-  extrapolation:
-    dimensions:
-      - id: "revenue_stability"
-        name: "营收稳定性"
-        metric: "5年营收增长率标准差(%)"
-        scoring:
-          - { max: 5,    score: 5 }
-          - { min: 5,    max: 10,  score: 3 }
-          - { min: 10,   max: 20,  score: 2 }
-          - { min: 20,   score: 1 }
+  # 折现率: 无风险利率(~1.7%) + 股权溢价(2%) + 个股风险溢价(~3.3%) ≈ 7%
+  discount_rate: 0.07
+  discount_rate_logic: "max(无风险利率+2%, 5%) + 个股风险溢价 2%"
 
-      - id: "margin_stability"
-        name: "利润率稳定性"
-        metric: "5年毛利率标准差(%)"
-        scoring:
-          - { max: 2,    score: 5 }
-          - { min: 2,    max: 5,   score: 3 }
-          - { min: 5,    max: 10,  score: 2 }
-          - { min: 10,   score: 1 }
+  # 4.1 估值安全边际率 (0-15分)
+  valuation_safety_margin:
+    max_score: 15
+    formula: "合理市值 = (DC × 分配比率 + 回购注销) / 折现率"
+    thresholds:
+      - { min: 50,  score: 15, label: "五折买·极度安全" }
+      - { min: 30,  max: 50, score: 12, label: "七折买·很安全" }
+      - { min: 15,  max: 30, score: 8,  label: "八五折买·合理" }
+      - { min: 0,   max: 15, score: 4,  label: "接近合理" }
+      - { max: 0,   score: 0,  label: "溢价买入" }
 
-      - id: "roe_stability"
-        name: "ROE稳定性"
-        metric: "5年ROE标准差(%)"
-        scoring:
-          - { max: 3,    score: 5 }
-          - { min: 3,    max: 6,   score: 3 }
-          - { min: 6,    max: 10,  score: 2 }
-          - { min: 10,   score: 1 }
-
-      - id: "industry_predictability"
-        name: "行业可预测性"
-        scoring:
-          消费: 5
-          公用事业: 5
-          医药: 4
-          工业: 3
-          材料: 2
-          能源: 1
-          科技: 2
-          default: 3
-
-      - id: "management_stability"
-        name: "管理层稳定性"
-        metric: "近5年董事长/CEO更换次数"
-        scoring:
-          - { max: 0,    score: 5 }
-          - { min: 1,    max: 1,   score: 3 }
-          - { min: 2,    score: 1 }
-
-      # v0.15 新增: OE增长趋势（增长维度的正确归宿）
-      - id: "oe_growth_trend"
-        name: "OE增长趋势"
-        metric: "近3年OE_cf CAGR(%)"
-        scoring:
-          - { min: 15,   score: 5 }                              # 高增长
-          - { min: 8,    max: 15,  score: 3 }                     # 中增长
-          - { min: 0,    max: 8,   score: 2 }                     # 持平
-          - { max: 0,    score: 1 }                               # 衰退
-        philosophy: "增长不应融入PR（PR是静态快照），而应在外推可行度中独立评估"
-
-    # 分级（阈值随维度数调整）
-    levels:
-      high:   { min: 25, label: "高可行" }         # 6维满分30，25≈83%
-      medium: { min: 16, max: 24, label: "中可行" } # 16≈53%
-      low:    { max: 15, label: "低可行" }
-
-  # 3.2 价值陷阱排查（5项+负债子项，每触发1项计1分，最多7分）
-  value_trap_checks:
+  # 4.2 下行风险缓冲 (0-5分)
+  downside_buffer:
+    max_score: 5
     items:
-      - id: 1
-        name: "盈利真实性"
-        trigger: "近3年中任一年 (经营现金流净额 / 净利润) < 0.6"
-      - id: 2
-        name: "资产质量"
-        trigger: "近3年应收账款增速 > 营收增速 × 1.5  或  存货增速 > 营收增速 × 1.3"
-      - id: 3
-        name: "负债压力"
-        trigger: "流动比率 < 1.0  或  速动比率 < 0.5"
-        # v0.15 新增子触发: 杠杆率维度
-        sub_triggers:
-          - { name: "高杠杆", trigger: "有息负债/EBITDA > 4", extra_count: 1 }
-          - { name: "利息覆盖不足", trigger: "EBIT/利息 < 3", extra_count: 1 }
-      - id: 4
-        name: "行业趋势"
-        trigger: "行业近3年营收复合增速 < (GDP增速 - 2%)"
-      - id: 5
-        name: "治理风险"
-        trigger: "大股东质押率 > 50%  或  关联交易/营收 > 30%"
-    levels:
-      low:   { max: 1,    label: "低风险" }
-      medium: { min: 2,   max: 3,  label: "中风险" }
-      high:  { min: 4,   label: "高风险" }
+      - id: "asset_floor"
+        name: "资产底价"
+        metric: "(货币资金+交易金融资产-总负债) / 市值"
+        thresholds:
+          - { min: 50, score: 2, label: "清算支撑强" }
+          - { min: 20, score: 1, label: "有一定支撑" }
+          - { max: 20, score: 0, label: "支撑薄弱" }
 
-  # 3.3 3×3 仓位矩阵（外推可行度 × 价值陷阱风险 → 建议仓位上限%）
+      - id: "dividend_anchor"
+        name: "股息托底"
+        metric: "当前股息率 ≥ 历史中位数 × 0.8"
+        thresholds:
+          - { condition: true,  score: 1, label: "股息有托底" }
+          - { condition: false, score: 0, label: "股息在低位" }
+
+      - id: "buyback_support"
+        name: "回购支撑"
+        metric: "回购注销金额 > 0"
+        thresholds:
+          - { condition: true,  score: 2, label: "有回购注销" }
+          - { condition: false, score: 0, label: "无回购" }
+
+  # 4.3 仓位矩阵（由安全边际率单维驱动）
   position_matrix:
-    high_extrapolation_low_trap:      { position_pct: 15,  label: "10~15%" }
-    high_extrapolation_medium_trap:   { position_pct: 8,   label: "5~8%" }
-    high_extrapolation_high_trap:     { position_pct: 3,   label: "0~3%" }
-    medium_extrapolation_low_trap:    { position_pct: 8,   label: "5~8%" }
-    medium_extrapolation_medium_trap: { position_pct: 5,   label: "3~5%" }
-    medium_extrapolation_high_trap:   { position_pct: 2,   label: "0~2%" }
-    low_extrapolation_low_trap:       { position_pct: 3,   label: "0~3%" }
-    low_extrapolation_medium_trap:    { position_pct: 2,   label: "0~2%" }
-    low_extrapolation_high_trap:      { position_pct: 0,   label: "0%" }
-
-  # 3.4 L5得分映射公式
-  scoring_formula: "L5 = (仓位上限% / 15%) × 25，上限25分"
+    thresholds:
+      - { min: 30,  position_pct: 15, score: 5, label: "15%" }
+      - { min: 15,  position_pct: 10, score: 3, label: "10%" }
+      - { min: 0,   position_pct: 5,  score: 2, label: "5%" }
+      - { max: 0,   position_pct: 0,  score: 0, label: "0%" }
 
 # =====================================================================
-# 四、商业模式乘数 (L3)
-# =====================================================================
-business_model_multiplier:
-  excellent: 1.2    # 优
-  good: 1.0         # 良
-  medium: 0.8       # 中
-  poor: "reject"    # 差 → 截断（不进入最终评分）
-
-# =====================================================================
-# 五、乘法打分模型
+# 五、打分模型 — v0.23 加法百分制
 # =====================================================================
 scoring:
-  formula: "Final = (L2_20pt + L4_40pt + L5_25pt) × L3_multiplier"
-  max_raw: 85      # 20 + 40 + 25 = 85
-  max_final: 102    # 85 × 1.2
+  formula: "Final = L3_30pt + L4_45pt + L5_25pt = 100pt"
+  max_raw: 100
+  max_final: 100
 
-  # 最终池阈值
   pools:
-    core:  75       # ≥75 核心池
-    watch: 55       # 55~74 观察池
-                     # <55 备选池
+    core: 75    # ≥75 核心池
+    watch: 50   # 50~74 观察池
+                 # <50 备选池
 
 # =====================================================================
 # 六、分红率计算
@@ -301,19 +331,15 @@ scoring:
 dividend:
   source_interface: "tushare: dividend"
   calculation: "每股派息(cash_div) / EPS"
-
-  # 取值策略
   lookback_years: 5
-  aggregation: "中位数"        # 用5年中位数排除异常年份干扰
+  aggregation: "中位数"
 
-  # 分红率门控
   gates:
-    high:            { min: 50, warning: "需要验证可持续性，检查是否借钱分红" }
+    high:            { min: 50, warning: "需要验证可持续性" }
     normal:          { min: 30, max: 50 }
     low:             { min: 20, max: 30, action: "安全边际得分打7折" }
-    very_low:        { min: 0, max: 20, action: "标记'低分红'，穿透回报率不适用股息模型" }
+    very_low:        { min: 0, max: 20, action: "标记'低分红'" }
 
-  # 分红可持续性验证
   sustainability_checks:
     payout_to_operating_cf:   { threshold: 80,  warning: "分红/经营现金流>80%，可能借钱分红" }
     payout_to_net_profit:     { threshold: 70,  warning: "分红/净利润>70%，无法留存再投资" }
@@ -323,35 +349,29 @@ dividend:
 # 七、SOTP 双口径
 # =====================================================================
 sotp:
-  # 口径A: 母公司可支配现金 ÷ 市值
-  # 口径B: 合并口径现金 × 分红回流率 ÷ 市值
-  divergence_threshold: 2.0   # |A-B| > 2pp → Agent综合判断
+  divergence_threshold: 2.0
 
 # =====================================================================
 # 八、税率默认值
 # =====================================================================
 tax:
-  corporate_income_tax: 0.25   # 企业所得税默认25%
-  dividend_withholding: 0.0    # v0.22: 股息红利税不再从PR中预扣
-  dividend_tax_note: "持股<1个月需缴10%红利税，报告底部备注提醒"
+  corporate_income_tax: 0.25
+  dividend_withholding: 0.0
 
 # =====================================================================
 # 九、公司分类与策略分流
 # =====================================================================
 company_classification:
-  # 仅以下两类进入龟龟策略完整管线
   eligible:
-    - STANDARD_CONSUMER       # 消费/医药/公用事业 → 标准穿透回报率管线
-    - HOLDING_COMPANY         # 控股型 → SOTP管线
-
-  # 以下三类在分类阶段直接排除
+    - STANDARD_CONSUMER
+    - HOLDING_COMPANY
   excluded:
     - id: CYCLICAL
       name: "强周期"
-      reason: "利润波动剧烈，穿透回报率在周期顶部/底部完全失真，CAPEX系数无意义"
+      reason: "利润波动剧烈，穿透回报率在周期顶部/底部完全失真"
     - id: FINANCIAL
       name: "金融类"
-      reason: "资产负债表结构与其他行业完全不同，CAPEX概念不适用，杠杆是商业模式而非风险指标"
+      reason: "资产负债表结构与其他行业完全不同"
     - id: GROWTH_NO_DIVIDEND
       name: "成长不分配"
-      reason: "股息率为0，安全边际模型依赖分红折现，无分红则模型失效"
+      reason: "股息率为0，安全边际模型依赖分红折现"

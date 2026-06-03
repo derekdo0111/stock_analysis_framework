@@ -1,7 +1,12 @@
 """
-L5 安全边际计算 — 外推可行度(6维) + 价值陷阱(5项) + 3×3仓位矩阵。
+L5 安全边际计算 — v0.23 纯估值保护。
 
-L5 = (仓位上限% / 15%) × 25，上限25pt
+三组件:
+1. 估值安全边际率 (0-15分): 合理市值 vs 当前市值的折扣
+2. 下行风险缓冲   (0-5分):  资产底价 + 股息托底 + 回购支撑
+3. 仓位矩阵       (0-5分):  由安全边际率单维驱动
+
+折现率: 7% = max(无风险利率+2%, 5%) + 个股风险溢价2%
 """
 
 from __future__ import annotations
@@ -16,30 +21,33 @@ from src.rules.loader import load_rules
 
 @dataclass
 class L5Result:
-    """L5 安全边际计算结果。"""
+    """L5 安全边际计算结果 — v0.23。"""
+
     ts_code: str
 
-    # 外推可行度
-    extrapolation_dims: dict[str, float] = field(default_factory=dict)
-    extrapolation_total: float = 0.0
-    extrapolation_level: str = ""
+    # 估值安全边际
+    safety_margin_pct: float = 0.0  # 安全边际率(%)
+    reasonable_market_cap: float = 0.0  # 合理市值(万元)
+    current_market_cap: float = 0.0  # 当前市值(万元)
+    valuation_score: float = 0.0  # 0-15
+    valuation_label: str = ""
 
-    # 价值陷阱
-    traps_triggered: list[str] = field(default_factory=list)
-    trap_score: int = 0
-    trap_level: str = ""
+    # 下行缓冲
+    downside_buffer_score: float = 0.0  # 0-5
+    downside_buffer_details: list[dict] = field(default_factory=list)
 
-    # 仓位矩阵
+    # 仓位
     position_pct: float = 0.0
+    position_score: float = 0.0  # 0-5
     position_label: str = ""
 
-    # L5 得分
+    # L5 总分
     l5_score: float = 0.0
     l5_max: float = 25.0
 
 
 class L5Calculator:
-    """L5 安全边际计算器。所有数据从 StockDataBundle 读取。"""
+    """L5 估值安全边际计算器 — v0.23。"""
 
     def __init__(self, bundle: StockDataBundle):
         self._bundle = bundle
@@ -49,289 +57,278 @@ class L5Calculator:
     def calculate(self, ts_code: str, industry: str = "") -> L5Result:
         result = L5Result(ts_code=ts_code)
 
-        # 1. 外推可行度 6维评分
-        self._calc_extrapolation(ts_code, industry, result)
+        # Step 0: 获取关键数据
+        distributable = self._get_distributable_amount()
+        current_mv = self._get_current_market_cap(ts_code)
+        result.current_market_cap = current_mv
 
-        # 2. 价值陷阱 5项+2子触发
-        self._calc_value_traps(ts_code, result)
+        discount_rate = self._mos.discount_rate
 
-        # 3. 3×3 仓位矩阵
-        self._lookup_position(result)
+        # Step 1: 估值安全边际率 (0-15分)
+        if current_mv > 0 and distributable > 0 and discount_rate > 0:
+            result.reasonable_market_cap = distributable / discount_rate
+            result.safety_margin_pct = round(
+                (result.reasonable_market_cap - current_mv) / current_mv * 100, 2
+            )
+        result.valuation_score, result.valuation_label = self._score_valuation_safety_margin(
+            result.safety_margin_pct
+        )
 
-        # 4. L5 得分
-        result.l5_score = round(min(self._mos.max_score, (result.position_pct / 15.0) * self._mos.max_score), 2)
+        # Step 2: 下行风险缓冲 (0-5分)
+        result.downside_buffer_score, result.downside_buffer_details = self._score_downside_buffer(
+            ts_code, current_mv
+        )
+
+        # Step 3: 仓位矩阵 (0-5分) — 由安全边际率驱动
+        result.position_pct, result.position_score, result.position_label = self._lookup_position(
+            result.safety_margin_pct
+        )
+
+        # L5 总分
+        result.l5_score = round(
+            result.valuation_score + result.downside_buffer_score + result.position_score, 2
+        )
 
         return result
 
-    def _calc_extrapolation(self, ts_code: str, industry: str, result: L5Result) -> None:
-        dims = self._mos.extrapolation.dimensions
-        scores: dict[str, float] = {}
+    # ── 估值安全边际 ───────────────────────────────────
 
-        for dim in dims:
-            dim_id = dim.id
-            try:
-                if dim_id == "revenue_stability":
-                    scores[dim_id] = self._score_revenue_stability(ts_code, dim)
-                elif dim_id == "margin_stability":
-                    scores[dim_id] = self._score_margin_stability(ts_code, dim)
-                elif dim_id == "roe_stability":
-                    scores[dim_id] = self._score_roe_stability(ts_code, dim)
-                elif dim_id == "industry_predictability":
-                    scores[dim_id] = self._score_industry_predictability(industry, dim)
-                elif dim_id == "management_stability":
-                    scores[dim_id] = self._score_management_stability(ts_code, dim)
-                elif dim_id == "oe_growth_trend":
-                    scores[dim_id] = self._score_oe_growth(ts_code, dim)
-            except Exception:
-                scores[dim_id] = 2  # default mid score
+    def _get_distributable_amount(self) -> float:
+        """获取可分配现金（万元）= DC × 分配比率 + 回购注销。"""
+        try:
+            from src.data_pool.schema.disposable_cash import DisposableCashCalculator
+            dc_calc = DisposableCashCalculator(self._bundle)
+            dc_result = dc_calc.calculate(self._bundle.ts_code)
 
-        result.extrapolation_dims = scores
-        result.extrapolation_total = round(sum(scores.values()), 1)
+            # 分配比率（简化版：用历史 mean(分红/NP)）
+            ratio = self._estimate_distribution_ratio()
+            buyback = self._get_buyback_cancellation_amount()
 
-        # 分级
-        levels = self._mos.extrapolation.levels
-        for level_name, level in levels.items():
-            if level_name == "high" and result.extrapolation_total >= (level.min or 0):
-                result.extrapolation_level = "高可行"
-            elif level_name == "medium" and (level.min or 0) <= result.extrapolation_total <= (level.max or 999):
-                result.extrapolation_level = "中可行"
-            elif level_name == "low" and result.extrapolation_total <= (level.max or 999):
-                result.extrapolation_level = "低可行"
+            return dc_result.current * (ratio / 100) + buyback
+        except Exception:
+            return 0.0
 
-    def _calc_value_traps(self, ts_code: str, result: L5Result) -> None:
-        items = self._mos.value_trap_checks.items
-        triggered: list[str] = []
-        extra = 0
+    def _estimate_distribution_ratio(self) -> float:
+        """估算分配比率（降级到二档外推）。"""
+        try:
+            # 一档：公告承诺
+            commitment = getattr(self._bundle, "dividend_commitment", None)
+            if commitment and commitment.has_commitment and commitment.ratio:
+                return commitment.ratio
 
-        for item in items:
+            # 二档：历史 mean(分红/NP)
+            div_df = self._bundle.dividend
+            income_df = self._bundle.income
+
+            annual_divs: dict[int, float] = {}
+            if not div_df.empty and "end_date" in div_df.columns:
+                for _, row in div_df.iterrows():
+                    proc = str(row.get("div_proc", ""))
+                    if proc != "实施":
+                        continue
+                    year = int(str(row.get("end_date", ""))[:4])
+                    cash_per_share = float(row.get("cash_div_tax", 0) or row.get("cash_div", 0))
+                    annual_divs[year] = annual_divs.get(year, 0) + cash_per_share
+
+            income_yearly = income_df[
+                income_df["end_date"].astype(str).str.endswith("1231")
+            ].sort_values("end_date", ascending=False).head(5)
+
+            payout_ratios = []
+            for _, row in income_yearly.iterrows():
+                year = int(str(row.get("end_date", ""))[:4])
+                np_val = float(row.get("n_income") or 0) / 1e4
+                if np_val <= 0 or year not in annual_divs:
+                    continue
+                total_share = self._get_year_end_total_share(year)
+                if total_share <= 0:
+                    continue
+                total_div = annual_divs[year] * total_share
+                payout_ratios.append(total_div / np_val * 100)
+
+            if payout_ratios:
+                return float(np.mean(payout_ratios))
+        except Exception:
+            pass
+        return 30.0
+
+    def _get_buyback_cancellation_amount(self) -> float:
+        """获取回购注销金额。"""
+        buyback_info = getattr(self._bundle, "buyback_cancellation", None)
+        if buyback_info and buyback_info.has_cancellation and buyback_info.amount > 0:
+            return buyback_info.amount
+
+        try:
+            df = self._bundle.repurchase
+            if df.empty:
+                return 0.0
+            proc_col = df["proc"].astype(str).str.strip()
+            df = df[proc_col.isin(["实施", "完成", "已完成"])].copy()
+            if "proc" in df.columns:
+                cancel_mask = df["proc"].astype(str).str.contains("注销", na=False)
+                if cancel_mask.any() and "amount" in df.columns:
+                    return float(df.loc[cancel_mask, "amount"].sum())
+        except Exception:
+            pass
+        return 0.0
+
+    def _get_current_market_cap(self, ts_code: str) -> float:
+        """获取最新总市值(万元)。"""
+        try:
+            db = self._bundle.daily_basic.sort_values("trade_date", ascending=False)
+            if not db.empty:
+                mv = db.iloc[0].get("total_mv")
+                if mv and float(mv) > 0:
+                    return float(mv)
+        except Exception:
+            pass
+        return 0.0
+
+    def _score_valuation_safety_margin(self, safety_margin_pct: float) -> tuple[float, str]:
+        """根据安全边际率打分 (0-15)。"""
+        vsm = self._mos.valuation_safety_margin
+        for t in vsm.thresholds:
+            t_min = t.min
+            t_max = t.max
+            score = t.score or 0
+            label = t.label or ""
+            if t_min is not None and t_max is not None:
+                if t_min <= safety_margin_pct < t_max:
+                    return score, label
+            elif t_min is not None and t_max is None:
+                if safety_margin_pct >= t_min:
+                    return score, label
+            elif t_min is None and t_max is not None:
+                if safety_margin_pct < t_max:
+                    return score, label
+        return 0, "溢价买入"
+
+    # ── 下行风险缓冲 ───────────────────────────────────
+
+    def _score_downside_buffer(self, ts_code: str, current_mv: float) -> tuple[float, list[dict]]:
+        """下行风险缓冲评分 (0-5分)。"""
+        details: list[dict] = []
+        total = 0.0
+
+        db_cfg = self._mos.downside_buffer
+        for item in db_cfg.items:
             item_id = item.id
+            try:
+                if item_id == "asset_floor":
+                    s, l = self._eval_asset_floor(current_mv, item)
+                elif item_id == "dividend_anchor":
+                    s, l = self._eval_dividend_anchor(item)
+                elif item_id == "buyback_support":
+                    s, l = self._eval_buyback_support(item)
+                else:
+                    s, l = 0, "未实现"
+            except Exception:
+                s, l = 0, "计算异常"
 
-            # 1. 盈利真实性
-            if item_id == 1:
-                if self._check_cf_to_profit(ts_code):
-                    triggered.append(item.name)
-            # 2. 资产质量
-            elif item_id == 2:
-                if self._check_asset_quality(ts_code):
-                    triggered.append(item.name)
-            # 3. 负债压力
-            elif item_id == 3:
-                is_triggered, sub_extra = self._check_debt_pressure(ts_code, item)
-                if is_triggered:
-                    triggered.append(item.name)
-                extra += sub_extra
-            # 4. 行业趋势
-            elif item_id == 4:
-                if self._check_industry_trend(ts_code):
-                    triggered.append(item.name)
-            # 5. 治理风险
-            elif item_id == 5:
-                if self._check_governance(ts_code):
-                    triggered.append(item.name)
+            total += s
+            details.append({"id": item_id, "name": item.name, "score": s, "label": l})
 
-        result.traps_triggered = triggered
-        result.trap_score = len(triggered) + extra
+        return round(total, 1), details
 
-        # 分级
-        levels = self._mos.value_trap_checks.levels
-        for level_name, level in levels.items():
-            if level_name == "low" and result.trap_score <= (level.max or 0):
-                result.trap_level = "低风险"
-            elif level_name == "medium" and (level.min or 0) <= result.trap_score <= (level.max or 0):
-                result.trap_level = "中风险"
-            elif level_name == "high" and result.trap_score >= (level.min or 0):
-                result.trap_level = "高风险"
+    def _eval_asset_floor(self, current_mv: float, item) -> tuple[float, str]:
+        """资产底价: (货币资金+交易金融资产-总负债)/市值 %。"""
+        try:
+            bs = self._bundle.balancesheet.sort_values("end_date", ascending=False).head(1)
+            if bs.empty or current_mv <= 0:
+                return 0, "数据不足"
+            row = bs.iloc[0]
+            money_cap = float(row.get("money_cap") or 0)
+            trad_assets = float(row.get("trad_asset") or 0)
+            total_liab = float(row.get("total_liab") or 0)
+            net_liquid = money_cap + trad_assets - total_liab
+            ratio = net_liquid / current_mv * 100
+            for t in item.thresholds:
+                t_min = t.min
+                t_max = t.max
+                if t_min is not None and t_max is not None:
+                    if t_min <= ratio < t_max:
+                        return t.score or 0, t.label or ""
+                elif t_min is not None:
+                    if ratio >= t_min:
+                        return t.score or 0, t.label or ""
+                elif t_max is not None:
+                    if ratio < t_max:
+                        return t.score or 0, t.label or ""
+        except Exception:
+            pass
+        return 0, "数据不足"
 
-    def _lookup_position(self, result: L5Result) -> None:
-        e = result.extrapolation_level.replace("可行", "").lower() if result.extrapolation_level else "medium"
-        t = result.trap_level.replace("风险", "").lower() if result.trap_level else "low"
+    def _eval_dividend_anchor(self, item) -> tuple[float, str]:
+        """股息托底: 当前股息率 vs 历史中位数 × 0.8。"""
+        try:
+            db = self._bundle.daily_basic.sort_values("trade_date", ascending=False)
+            if db.empty:
+                return 0, "数据不足"
 
-        e_map = {"高": "high", "中": "medium", "低": "low"}
-        t_map = {"低": "low", "中": "medium", "高": "high"}
+            current_dy = float(db.iloc[0].get("dv_ratio") or 0)
+            # 历史中位数（排除最近一年以排除价格波动）
+            hist = db.iloc[250:] if len(db) > 250 else db.tail(3)
+            hist_dys = [float(r.get("dv_ratio") or 0) for _, r in hist.iterrows() if r.get("dv_ratio")]
+            if not hist_dys:
+                return 0, "历史数据不足"
+            median_dy = float(np.median(hist_dys))
 
-        e_key = e_map.get(e, "medium")
-        t_key = t_map.get(t, "low")
-        matrix_key = f"{e_key}_extrapolation_{t_key}_trap"
+            if median_dy > 0 and current_dy >= median_dy * 0.8:
+                return 1, "股息有托底"
+            return 0, "股息在低位"
+        except Exception:
+            pass
+        return 0, "数据不足"
 
+    def _eval_buyback_support(self, item) -> tuple[float, str]:
+        """回购支撑: 是否存在回购注销。"""
+        buyback = self._get_buyback_cancellation_amount()
+        if buyback > 0:
+            return 2, "有回购注销"
+        return 0, "无回购"
+
+    # ── 仓位矩阵 ───────────────────────────────────────
+
+    def _lookup_position(self, safety_margin_pct: float) -> tuple[float, float, str]:
+        """由安全边际率确定仓位上限+得分。"""
         pm = self._mos.position_matrix
-        if matrix_key in pm:
-            result.position_pct = pm[matrix_key].position_pct
-            result.position_label = pm[matrix_key].label
+        for t in pm.thresholds:
+            t_min = t.min
+            t_max = t.max
+            if t_min is not None and t_max is not None:
+                if t_min <= safety_margin_pct < t_max:
+                    return t.position_pct, t.score, t.label
+            elif t_min is not None and t_max is None:
+                if safety_margin_pct >= t_min:
+                    return t.position_pct, t.score, t.label
+            elif t_min is None and t_max is not None:
+                if safety_margin_pct < t_max:
+                    return t.position_pct, t.score, t.label
+        return 0.0, 0.0, "0%"
 
-    # ── 各维度评分实现 ──────────────────────────────────────
+    # ── 辅助方法 ───────────────────────────────────────
 
-    def _score_revenue_stability(self, ts_code: str, dim) -> float:
+    def _get_year_end_total_share(self, year: int) -> float:
         try:
-            df = self._bundle.income.sort_values("end_date", ascending=False).head(5)
-            revenues = [float(r.get("total_revenue") or 0) for _, r in df.iterrows() if r.get("total_revenue")]
-            if len(revenues) >= 3:
-                growth_rates = [(revenues[i] - revenues[i + 1]) / revenues[i + 1] * 100
-                                for i in range(len(revenues) - 1) if revenues[i + 1] > 0]
-                std = float(np.std(growth_rates)) if growth_rates else 50
-                return self._apply_dim_thresholds(std, dim)
+            db = self._bundle.daily_basic
+            row = db[db["trade_date"].astype(str) == f"{year}1231"]
+            if not row.empty:
+                ts = row.iloc[0].get("total_share")
+                if ts and float(ts) > 0:
+                    return float(ts)
         except Exception:
             pass
-        return 2
-
-    def _score_margin_stability(self, ts_code: str, dim) -> float:
-        try:
-            df = self._bundle.fina_indicator.sort_values("end_date", ascending=False).head(5)
-            margins = [float(r.get("grossprofit_margin") or 0) for _, r in df.iterrows()]
-            if margins:
-                std = float(np.std(margins))
-                return self._apply_dim_thresholds(std, dim)
-        except Exception:
-            pass
-        return 2
-
-    def _score_roe_stability(self, ts_code: str, dim) -> float:
-        try:
-            df = self._bundle.fina_indicator.sort_values("end_date", ascending=False).head(5)
-            roes = [float(r.get("roe") or 0) for _, r in df.iterrows()]
-            if roes:
-                std = float(np.std(roes))
-                return self._apply_dim_thresholds(std, dim)
-        except Exception:
-            pass
-        return 2
-
-    def _score_industry_predictability(self, industry: str, dim) -> float:
-        scoring = dim.scoring
-        if isinstance(scoring, dict):
-            for kw, score in scoring.items():
-                if kw in industry:
-                    return float(score)
-            return float(scoring.get("default", 3))
-        return 3
-
-    def _score_management_stability(self, ts_code: str, dim) -> float:
-        # Tushare 无直接管理层更换数据 → 默认 3 分
-        return 3
-
-    def _score_oe_growth(self, ts_code: str, dim) -> float:
-        try:
-            df = self._bundle.cashflow.sort_values("end_date", ascending=False).head(5)
-            # 用简易OE估计: op_cf - capex
-            oe_vals = []
-            for _, r in df.iterrows():
-                op_cf = r.get("n_cashflow_act") or 0
-                capex = r.get("c_pay_acq_const_fiolta") or 0
-                oe_vals.append(op_cf - capex * 0.55)  # 默认系数
-            if len(oe_vals) >= 3 and oe_vals[-1] and oe_vals[-1] != 0:
-                cagr = (oe_vals[0] / oe_vals[-1]) ** (1 / 3) - 1
-                return self._apply_dim_thresholds(cagr * 100, dim)
-        except Exception:
-            pass
-        return 2
-
-    # ── 价值陷阱检查 ──────────────────────────────────────
-
-    def _check_cf_to_profit(self, ts_code: str) -> bool:
-        try:
-            cf = self._bundle.cashflow.sort_values("end_date", ascending=False).head(3)
-            inc = self._bundle.income.sort_values("end_date", ascending=False).head(3)
-            for _, crow in cf.iterrows():
-                op_cf = crow.get("n_cashflow_act") or 0
-                ed = str(crow.get("end_date", ""))
-                n_income = 0
-                for _, irow in inc.iterrows():
-                    if str(irow.get("end_date", "")) == ed:
-                        n_income = irow.get("n_income") or 0
-                        break
-                if n_income and n_income != 0 and op_cf / n_income < 0.6:
-                    return True
-        except Exception:
-            pass
-        return False
-
-    def _check_asset_quality(self, ts_code: str) -> bool:
-        try:
-            bs = self._bundle.balancesheet.sort_values("end_date", ascending=False).head(3)
-            inc = self._bundle.income.sort_values("end_date", ascending=False).head(3)
-            # 应收增速 vs 营收增速
-            if len(bs) >= 2 and len(inc) >= 2:
-                ar_growth = (bs.iloc[0].get("accounts_receiv") or 0) / max(1, (bs.iloc[-1].get("accounts_receiv") or 1)) - 1
-                rev_growth = (inc.iloc[0].get("total_revenue") or 0) / max(1, (inc.iloc[-1].get("total_revenue") or 1)) - 1
-                if ar_growth > rev_growth * 1.5:
-                    return True
-                inv_growth = (bs.iloc[0].get("inventories") or 0) / max(1, (bs.iloc[-1].get("inventories") or 1)) - 1
-                if inv_growth > rev_growth * 1.3:
-                    return True
-        except Exception:
-            pass
-        return False
-
-    def _check_debt_pressure(self, ts_code: str, item) -> tuple[bool, int]:
-        extra = 0
-        try:
-            fi = self._bundle.fina_indicator.head(1)
-            if not fi.empty:
-                cr = float(fi.iloc[0].get("current_ratio") or 1.0)
-                qr = float(fi.iloc[0].get("quick_ratio") or 0.5)
-                if cr < 1.0 or qr < 0.5:
-                    # 子触发
-                    for st in item.sub_triggers:
-                        st_name = st.get("name", "")
-                        if "高杠杆" in st_name:
-                            try:
-                                bs = self._bundle.balancesheet.head(1)
-                                cf = self._bundle.cashflow.head(1)
-                                if not bs.empty and not cf.empty:
-                                    debt = (bs.iloc[0].get("st_borrow") or 0) + (bs.iloc[0].get("lt_borrow") or 0) + (bs.iloc[0].get("bonds_payable") or 0)
-                                    # EBITDA ≈ n_income + taxes + interest + depreciation
-                                    inc = self._bundle.income.head(1)
-                                    ebitda = (inc.iloc[0].get("total_profit") or 0) + debt * 0.04
-                                    if ebitda and ebitda > 0 and debt / ebitda > 4:
-                                        extra += 1
-                            except Exception:
-                                pass
-                        if "利息覆盖" in st_name:
-                            if cr < 1.0:
-                                extra += 1
-                    return True, extra
-        except Exception:
-            pass
-        return False, extra
-
-    def _check_industry_trend(self, ts_code: str) -> bool:
-        # GDP ≈ 5%, threshold = 5-2 = 3%
-        try:
-            inc = self._bundle.income.sort_values("end_date", ascending=False).head(3)
-            if len(inc) >= 3:
-                revenues = [float(r.get("total_revenue") or 0) for _, r in inc.iterrows()]
-                if revenues[0] and revenues[-1] and revenues[-1] > 0:
-                    cagr = (revenues[0] / revenues[-1]) ** (1 / 3) - 1
-                    if cagr < 0.03:  # GDP-2%
-                        return True
-        except Exception:
-            pass
-        return False
-
-    def _check_governance(self, ts_code: str) -> bool:
-        # 大股东质押率需要 pledge_stat 接口
-        try:
-            df = self._bundle.pledge_stat
-            if not df.empty:
-                pledge_ratio = float(df.iloc[0].get("pledge_ratio") or 0)
-                if pledge_ratio > 50:
-                    return True
-        except Exception:
-            pass
-        return False
-
-    @staticmethod
-    def _apply_dim_thresholds(value: float, dim) -> float:
-        for t in dim.scoring:
-            min_v = t.get("min")
-            max_v = t.get("max")
-            score = t.get("score", 0) or t.get("penalty", 0)
-            if min_v is not None and max_v is not None:
-                if min_v <= value < max_v:
-                    return score
-            elif min_v is not None and max_v is None:
-                if value >= min_v:
-                    return score
-            elif min_v is None and max_v is not None:
-                if value <= max_v:
-                    return score
-        return 1
+        for day_offset in range(1, 15):
+            try:
+                day = 31 - day_offset
+                if day < 1:
+                    break
+                db = self._bundle.daily_basic
+                row = db[db["trade_date"].astype(str) == f"{year}12{day:02d}"]
+                if not row.empty:
+                    ts = row.iloc[0].get("total_share")
+                    if ts and float(ts) > 0:
+                        return float(ts)
+            except Exception:
+                continue
+        return 0.0

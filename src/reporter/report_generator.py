@@ -34,31 +34,51 @@ class ReportGenerator:
 
     def _build_context(self, f: FinalScore, orch: OrchestrationResult | None = None) -> dict[str, Any]:
         l = lambda v, n: f"{v:.{n}f}"
-        score_color = "var(--green)" if f.final_score >= 75 else ("var(--yellow)" if f.final_score >= 55 else "var(--red)")
+        score_color = "var(--green)" if f.final_score >= 75 else ("var(--yellow)" if f.final_score >= 50 else "var(--red)")
         pool_class = {"核心池": "pool-core", "观察池": "pool-watch"}.get(f.pool, "pool-fallback")
         return {
             "name": f.name or f.ts_code,
             "ts_code": f.ts_code,
             "final_score": l(f.final_score, 2),
-            "raw_total": l(f.raw_total, 2),
             "pool": f.pool,
             "pool_class": pool_class,
             "score_color": score_color,
+            # ── v0.23: L3 商业模式 (0-30pt 加法) ──
+            "l3_score": l(f.l3_score, 1),
+            "l3_level": f.l3_level,
+            "l3_total_dim": l(f.l3_total_dim, 1),
+            "l3_dim_scores": f.l3_dim_scores,
+            "l3_group_scores": f.l3_group_scores,
+            "l3_bar_pct": int(f.l3_score / 30 * 100) if f.l3_score else 0,
+            # ── L2 仅显示 ──
             "l2_score": l(f.l2_score, 1),
-            "l3_multiplier": l(f.l3_multiplier, 1),
-            "l4_score": l(f.l4_score, 1),
-            "l5_score": l(f.l5_score, 1),
-            "pr_pct": l(f.pr_pct, 2),
-            "oe_quality": f.oe_quality,
-            "business_model": f.business_model,
-            "position_pct": l(f.position_pct, 1),
-            "hard_gate_passed": f.hard_gate_passed,
-            "hard_gate_checks": f.hard_gate_checks,
+            "l2_bar_pct": int(f.l2_score / 20 * 100),
             "l2_details": f.l2_details,
             "l2_pool": f.l2_pool,
+            # ── L4 穿透回报率 (0-45pt) ──
+            "l4_score": l(f.l4_score, 1),
+            "l4_bar_pct": int(f.l4_score / 45 * 100) if f.l4_score else 0,
+            "l4_color": "green" if f.l4_score >= 22 else ("yellow" if f.l4_score >= 11 else "red"),
+            # ── L5 安全边际 (0-25pt) ──
+            "l5_score": l(f.l5_score, 1),
+            "l5_bar_pct": int(f.l5_score / 25 * 100) if f.l5_score else 0,
+            "l5_color": "green" if f.l5_score >= 15 else "yellow",
+            "l5_safety_margin_pct": l(f.l5_safety_margin_pct, 1),
+            "l5_safety_margin_color": "green" if f.l5_safety_margin_pct >= 30 else ("yellow" if f.l5_safety_margin_pct >= 0 else "red"),
+            "l5_reasonable_mv": l(f.l5_reasonable_mv / 1e8, 1) if f.l5_reasonable_mv else "N/A",
+            "l5_valuation_score": l(f.l5_valuation_score, 1),
+            "l5_downside_score": l(f.l5_downside_score, 1),
+            "l5_downside_details": f.l5_downside_details,
+            "l5_position_score": l(f.l5_position_score, 1) if hasattr(f, 'l5_position_score') else "0",
+            "position_pct": l(f.position_pct, 1),
+            # ── PR 详情 ──
+            "pr_pct": l(f.pr_pct, 2),
+            "pr_color": "green" if f.pr_pct >= 8 else ("yellow" if f.pr_pct >= 5 else "red"),
+            "oe_quality": f.oe_quality,
+            "hard_gate_passed": f.hard_gate_passed,
+            "hard_gate_checks": f.hard_gate_checks,
             "classify_type": f.classify_type,
             "classify_reason": f.classify_reason,
-            # v0.19 PR details
             "pr_starting_score": l(f.pr_starting_score, 1),
             "pr_quality_penalty": l(f.pr_quality_penalty, 1),
             "pr_disposable_cash": l(f.pr_disposable_cash / 1e4, 1) if f.pr_disposable_cash else "N/A",
@@ -67,19 +87,6 @@ class ReportGenerator:
             "pr_buyback_cancellation": l(f.pr_buyback_cancellation / 1e4, 1) if f.pr_buyback_cancellation else "0",
             "oe_cf_median": l(float(f.oe_cf_median) / 1e4, 1) if f.oe_cf_median else "N/A",
             "oe_path_b_values": [l(v / 1e4, 1) for v in f.oe_path_b_values] if f.oe_path_b_values else [],
-            "l5_extrapolation_dims": f.l5_extrapolation_dims,
-            "l5_extrapolation_total": l(f.l5_extrapolation_total, 1),
-            "l5_extrapolation_level": f.l5_extrapolation_level,
-            "l5_traps_triggered": f.l5_traps_triggered,
-            "l5_trap_score": f.l5_trap_score,
-            "l5_trap_level": f.l5_trap_level,
-            "l5_position_label": f.l5_position_label,
-            "l2_bar_pct": int(f.l2_score / 20 * 100),
-            "l4_bar_pct": int(f.l4_score / 40 * 100) if f.l4_score else 0,
-            "l5_bar_pct": int(f.l5_score / 25 * 100) if f.l5_score else 0,
-            "pr_color": "green" if f.pr_pct >= 8 else ("yellow" if f.pr_pct >= 5 else "red"),
-            "l4_color": "green" if f.l4_score >= 20 else "yellow",
-            "l5_color": "green" if f.l5_score >= 15 else "yellow",
             "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
             # Agent 分析
             "has_agent": orch is not None and orch.analysis is not None,
@@ -147,7 +154,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
   <h1>{{ name }} <span style="color:var(--text-dim);font-size:0.7em;">{{ ts_code }}</span></h1>
   <div class="score">{{ final_score }}</div>
   <span class="pool-tag {{ pool_class }}">{{ pool }}</span>
-  <div style="margin-top:8px;color:var(--text-dim);font-size:0.85rem;">龟龟投资策略 v0.22 · {{ generated_at }}</div>
+  <div style="margin-top:8px;color:var(--text-dim);font-size:0.85rem;">龟龟投资策略 v0.23 · {{ generated_at }}</div>
 </div>
 
 <!-- ====== 1. HardGate 否决检查 ====== -->
@@ -166,31 +173,28 @@ _TEMPLATE = r"""<!DOCTYPE html>
 {% endif %}
 
 <!-- ====== 2. L2 初筛 + 公司分类 ====== -->
-<h2>2. L2 初筛 &amp; 公司分类</h2>
+<h2>2. L2 初筛 (门控) &amp; 公司分类</h2>
 <div class="grid">
   <div class="card">
-    <h3>L2 初筛 (满分 20)</h3>
+    <h3>L2 初筛 (仅门控, 不参与最终评分)</h3>
     <div class="metric"><span>财务质量</span><span class="metric-val">{{ l2_details.get('financial_quality','-') }} / 9</span></div>
     <div class="metric"><span>估值合理性</span><span class="metric-val">{{ l2_details.get('valuation','-') }} / 6</span></div>
     <div class="metric"><span>流动性健康</span><span class="metric-val">{{ l2_details.get('liquidity','-') }} / 3</span></div>
     <div class="metric"><span>加分项</span><span class="metric-val">{{ l2_details.get('bonus','-') }} / 2</span></div>
     <div class="metric" style="font-weight:700;border-top:1px solid var(--border);margin-top:6px;padding-top:6px;">
-      <span>L2 总分</span><span class="metric-val">{{ l2_score }} / 20</span>
+      <span>L2 总分 (仅供参考)</span><span class="metric-val">{{ l2_score }} / 20</span>
     </div>
-    <div class="bar-wrap"><div class="bar-fill blue" style="width:{{ l2_bar_pct }}%"></div></div>
     <div style="margin-top:8px;font-size:0.82rem;color:var(--text-dim);">分流: {{ l2_pool }}</div>
   </div>
   <div class="card">
     <h3>公司分类</h3>
     <div class="metric"><span>分类</span><span class="metric-val green">{{ classify_type }}</span></div>
     {% if classify_reason %}<div style="margin-top:10px;font-size:0.85rem;color:var(--text-dim);">{{ classify_reason }}</div>{% endif %}
-    <h3 style="margin-top:20px;">L3 商业模式乘数</h3>
-    <div class="metric"><span>乘数</span><span class="metric-val green">&times; {{ l3_multiplier }}</span></div>
   </div>
 </div>
 
-<!-- ====== 3. OE 路径B + PR 穿透回报率 (v0.22) ====== -->
-<h2>3. 穿透回报率 (L4) — v0.22 真实数学回报</h2>
+<!-- ====== 3. 穿透回报率 (L4, 0-45pt) ====== -->
+<h2>3. 穿透回报率 (L4) — 核心估值</h2>
 <div class="grid">
   <div class="card">
     <h3>OE 概要 (路径B)</h3>
@@ -201,12 +205,12 @@ _TEMPLATE = r"""<!DOCTYPE html>
     {% endif %}
   </div>
   <div class="card">
-    <h3>L4 打分</h3>
+    <h3>L4 打分 (0-45pt)</h3>
     <div class="metric"><span>PR (穿透回报率)</span><span class="metric-val {{ pr_color }}">{{ pr_pct }}%</span></div>
-    <div class="metric"><span>起点分</span><span class="metric-val">{{ pr_starting_score }} / 20</span></div>
+    <div class="metric"><span>起点分</span><span class="metric-val">{{ pr_starting_score }}</span></div>
     <div class="metric"><span>质量扣分</span><span class="metric-val red">{{ pr_quality_penalty }}</span></div>
     <div class="metric" style="font-weight:700;border-top:1px solid var(--border);margin-top:6px;padding-top:6px;">
-      <span>L4 最终得分</span><span class="metric-val {{ l4_color }}">{{ l4_score }} / 40</span>
+      <span>L4 最终得分</span><span class="metric-val {{ l4_color }}">{{ l4_score }} / 45</span>
     </div>
     <div class="bar-wrap"><div class="bar-fill {{ l4_color }}" style="width:{{ l4_bar_pct }}%"></div></div>
   </div>
@@ -245,32 +249,35 @@ _TEMPLATE = r"""<!DOCTYPE html>
   </div>
 </div>
 
-<!-- ====== 4. L5 安全边际 ====== -->
-<h2>4. 安全边际 (L5)</h2>
+<!-- ====== 4. L5 估值安全边际 (v0.23) ====== -->
+<h2>4. 安全边际 (L5) — 纯估值保护</h2>
 <div class="grid">
   <div class="card">
-    <h3>外推可行度 (满分 30)</h3>
-    {% if l5_extrapolation_dims %}
-    {% for dim, score in l5_extrapolation_dims.items() %}
-    <div class="metric"><span>{{ dim }}</span><span class="metric-val">{{ "%.1f"|format(score) }}</span></div>
+    <h3>估值安全边际率 (0-15分)</h3>
+    <div class="metric"><span>合理市值 (折现率7%)</span><span class="metric-val">{{ l5_reasonable_mv }} 亿</span></div>
+    <div class="metric"><span>安全边际率</span><span class="metric-val {{ l5_safety_margin_color }}">{{ l5_safety_margin_pct }}%</span></div>
+    <div class="metric" style="font-weight:700;border-top:1px solid var(--border);margin-top:6px;padding-top:6px;">
+      <span>估值安全得分</span><span class="metric-val">{{ l5_valuation_score }} / 15</span>
+    </div>
+  </div>
+  <div class="card">
+    <h3>下行风险缓冲 (0-5分)</h3>
+    {% if l5_downside_details %}
+    {% for d in l5_downside_details %}
+    <div class="metric"><span>{{ d.name }}</span><span class="metric-val">{{ "%.1f"|format(d.score) }}</span></div>
+    <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:4px;">{{ d.label }}</div>
     {% endfor %}
     {% endif %}
     <div class="metric" style="font-weight:700;border-top:1px solid var(--border);margin-top:6px;padding-top:6px;">
-      <span>外推总分</span><span class="metric-val">{{ l5_extrapolation_total }} / 30</span>
+      <span>缓冲得分</span><span class="metric-val">{{ l5_downside_score }} / 5</span>
     </div>
-    <div style="font-size:0.82rem;color:var(--text-dim);margin-top:6px;">评级: {{ l5_extrapolation_level }}</div>
   </div>
+</div>
+<div class="grid">
   <div class="card">
-    <h3>价值陷阱排查 (最多扣 7 分)</h3>
-    {% if l5_traps_triggered %}
-    {% for t in l5_traps_triggered %}
-    <div class="flag flag-warn">{{ t }}</div>
-    {% endfor %}
-    {% else %}
-    <div class="check-item check-pass">PASS 无价值陷阱触发</div>
-    {% endif %}
-    <div class="metric" style="margin-top:8px;"><span>陷阱扣分</span><span class="metric-val red">{{ l5_trap_score }} / 7</span></div>
-    <div style="font-size:0.82rem;color:var(--text-dim);margin-top:4px;">风险等级: {{ l5_trap_level }} &nbsp;|&nbsp; 仓位上限: {{ position_pct }}% &nbsp;|&nbsp; {{ l5_position_label }}</div>
+    <h3>仓位矩阵 (0-5分)</h3>
+    <div class="metric"><span>仓位上限</span><span class="metric-val">{{ position_pct }}%</span></div>
+    <div class="metric"><span>仓位得分</span><span class="metric-val">{{ l5_position_score }} / 5</span></div>
     <div class="metric" style="font-weight:700;border-top:1px solid var(--border);margin-top:6px;padding-top:6px;">
       <span>L5 最终得分</span><span class="metric-val {{ l5_color }}">{{ l5_score }} / 25</span>
     </div>
@@ -278,30 +285,44 @@ _TEMPLATE = r"""<!DOCTYPE html>
   </div>
 </div>
 
-<!-- ====== 5. 打分汇总 ====== -->
-<h2>5. 打分汇总</h2>
+<!-- ====== 5. L3 商业模式详情 ====== -->
+<h2>5. L3 商业模式评估 — 十二维</h2>
 <div class="grid">
   <div class="card" style="grid-column:1/-1;">
-    <h3>Final = (L2 + L3 + L4 + L5) &times; L3</h3>
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;text-align:center;margin-top:12px;">
+    <h3>L3 得分: {{ l3_score }} / 30 &nbsp;|&nbsp; 等级: {{ l3_level }} &nbsp;|&nbsp; 维度分: {{ l3_total_dim }} / 24</h3>
+    <div class="bar-wrap"><div class="bar-fill green" style="width:{{ l3_bar_pct }}%"></div></div>
+  </div>
+  {% if l3_dim_scores %}
+  {% for id, d in l3_dim_scores.items() %}
+  <div class="card">
+    <h3>{{ d.name }} <span style="font-size:0.75rem;color:var(--text-dim);">({{ d.group }})</span></h3>
+    <div class="metric"><span>得分</span><span class="metric-val">{{ "%.0f"|format(d.score) }} / 2</span></div>
+    <div style="font-size:0.82rem;color:var(--text-dim);">{% if d.label %}{{ d.label }}{% endif %}</div>
+  </div>
+  {% endfor %}
+  {% endif %}
+</div>
+
+<!-- ====== 6. 打分汇总 ====== -->
+<h2>6. 打分汇总 — v0.23 百分制</h2>
+<div class="grid">
+  <div class="card" style="grid-column:1/-1;">
+    <h3>Final = L3 + L4 + L5 = {{ l3_score }} + {{ l4_score }} + {{ l5_score }}</h3>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;text-align:center;margin-top:12px;">
       <div style="background:var(--bg);padding:14px;border-radius:8px;">
-        <div style="font-size:0.78rem;color:var(--text-dim);">L2 初筛</div>
-        <div style="font-size:1.3rem;font-weight:700;color:var(--accent);">{{ l2_score }}</div>
-        <div style="font-size:0.7rem;color:var(--text-dim);">/20</div>
+        <div style="font-size:0.78rem;color:var(--text-dim);">L3 商业模式</div>
+        <div style="font-size:1.3rem;font-weight:700;color:var(--green);">{{ l3_score }}</div>
+        <div style="font-size:0.7rem;color:var(--text-dim);">/30</div>
       </div>
       <div style="background:var(--bg);padding:14px;border-radius:8px;">
         <div style="font-size:0.78rem;color:var(--text-dim);">L4 穿透回报率</div>
         <div style="font-size:1.3rem;font-weight:700;color:{{ l4_color }};">{{ l4_score }}</div>
-        <div style="font-size:0.7rem;color:var(--text-dim);">/40</div>
+        <div style="font-size:0.7rem;color:var(--text-dim);">/45</div>
       </div>
       <div style="background:var(--bg);padding:14px;border-radius:8px;">
         <div style="font-size:0.78rem;color:var(--text-dim);">L5 安全边际</div>
         <div style="font-size:1.3rem;font-weight:700;color:{{ l5_color }};">{{ l5_score }}</div>
         <div style="font-size:0.7rem;color:var(--text-dim);">/25</div>
-      </div>
-      <div style="background:var(--bg);padding:14px;border-radius:8px;">
-        <div style="font-size:0.78rem;color:var(--text-dim);">L3 乘数</div>
-        <div style="font-size:1.3rem;font-weight:700;color:var(--text-dim);">&times;{{ l3_multiplier }}</div>
       </div>
       <div style="background:rgba(88,166,255,0.1);padding:14px;border-radius:8px;border:1px solid var(--accent);">
         <div style="font-size:0.78rem;color:var(--text-dim);">最终得分</div>
@@ -312,23 +333,23 @@ _TEMPLATE = r"""<!DOCTYPE html>
   </div>
 </div>
 
-<!-- ====== 6. 管线 ====== -->
-<h2>6. 处理管线</h2>
+<!-- ====== 7. 管线 ====== -->
+<h2>7. 处理管线 — v0.23</h2>
 <div class="pipeline">
   <div class="step step-done">HardGate</div>
-  <div class="step step-done">L2初筛</div>
+  <div class="step step-done">L2门控</div>
   <div class="step step-done">公司分类</div>
-  <div class="step step-done">OE路径B</div>
+  <div class="step step-done">L3十二维</div>
   <div class="step step-done">穿透回报率</div>
-  <div class="step step-done">L5安全边际</div>
-  <div class="step step-done">乘法打分</div>
+  <div class="step step-done">L5估值安全</div>
+  <div class="step step-done">加法百分制</div>
   <div class="step {% if has_agent %}step-done{% else %}step-skip{% endif %}">Agent分析</div>
   <div class="step {% if verification_verdict %}step-done{% else %}step-skip{% endif %}">Agent验证</div>
 </div>
 
-<!-- ====== 7. Agent 分析 ====== -->
+<!-- ====== 8. Agent 分析 ====== -->
 {% if has_agent %}
-<h2>7. Agent 定性分析 {{ agent_source }}</h2>
+<h2>8. Agent 定性分析 {{ agent_source }}</h2>
 <div class="grid">
   <div class="card" style="grid-column:1/-1;">
     <h3>商业模式判断: {{ agent_model }} · 总分 {{ agent_total }}/45</h3>
@@ -357,7 +378,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
 {% endif %}
 
 <div class="footer">
-  龟龟投资策略框架 v0.22 · 本报告仅供研究参考，不构成投资建议。<br>
+  龟龟投资策略框架 v0.23 · 本报告仅供研究参考，不构成投资建议。<br>
   生成时间: {{ generated_at }}
 </div>
 </body></html>"""

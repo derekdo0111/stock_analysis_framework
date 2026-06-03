@@ -8,7 +8,7 @@
 | 阶段四 (质量加固) | 🟢 完成 | GitHub Actions CI(ruff+mypy+pytest 3.9+3.11) + 162测试 + ruff零错误 + mypy零错误 |
 | 阶段五 (回测验证) | 🟡 代码完成 | Walk-Forward 6窗口 + 管线运行 + 分红验证 + 统计 + 报告 —— 代码已写完、测试通过，**待真数据跑回测** |
 
-**当前版本**: v0.22 — PR = (可支配现金 × 分配比率 + 回购注销) / 当前市值
+**当前版本**: v0.23 — L3 十二维商业模式评估(0-30pt) + L5 纯估值安全边际(0-25pt) + 加法百分制 Final=L3+L4+L5=100pt
 **v0.20**: DC maintenance_capex 修正（c_pay_acq_const_fiolta 替代 stot_out_inv_act）
 **v0.21**: 分配比率外推修正（adjusted_dc = dc + total_div，消除循环悖论）
 **v0.22**: DC 扣除全部成长性投入（+并购子公司+参股净增），PR 去除安全边际和税率折扣

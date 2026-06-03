@@ -49,7 +49,7 @@ def main():
     from src.data_fetcher.orchestrator import DataPoolOrchestrator
     from src.calculator.turtle_strategy.scoring import TurtleScorer
 
-    print(f"[Turtle] v0.19 -- Analyzing {args.ts_code}")
+    print(f"[Turtle] v0.23 -- Analyzing {args.ts_code}")
     print("=" * 60)
 
     # Phase 1: 数据快照（唯一调用 Tushare 的入口）
@@ -79,8 +79,8 @@ def main():
         print(f"[ERROR] 打分失败: {e}")
         sys.exit(1)
 
-    print(f"  L2={result.l2_score}  L3=x{result.l3_multiplier}  L4={result.l4_score}  L5={result.l5_score}")
-    print(f"  Raw={result.raw_total}  Final={result.final_score}  Pool={result.pool}")
+    print(f"  L2(门控)={result.l2_score}  L3={result.l3_score}/30 ({result.l3_level})  L4={result.l4_score}/45  L5={result.l5_score}/25")
+    print(f"  Final={result.final_score}/100  Pool={result.pool}")
     print(f"  PR={result.pr_pct:.2f}%  OE={_a(result.oe_quality)}  仓位={result.position_pct}%")
     if result.pr_distribution_source:
         src_label = "承诺" if "tier1" in result.pr_distribution_source else "外推"
@@ -140,14 +140,13 @@ def main():
     # 打印详细分解
     print(f"\n  --- Breakdown ---")
     print(f"  HardGate: {'PASS' if result.hard_gate_passed else 'VETO'}")
-    print(f"  L2: {result.l2_details}")
+    print(f"  L2(门控): {result.l2_details}")
     print(f"  Classify: {result.classify_type}")
-    print(f"  L3 multiplier: x{result.l3_multiplier:.1f}")
+    print(f"  L3: {result.l3_score}/30 ({result.l3_level})  dim-score={result.l3_total_dim}/24")
     print(f"  L4 PR: {result.pr_pct:.2f}%  start={result.pr_starting_score}  penalty={result.pr_quality_penalty}  OE={_a(result.oe_quality)}")
-    print(f"  PR v0.19: DC={result.pr_disposable_cash:.0f}万  ratio={result.pr_distribution_ratio:.1f}%({result.pr_distribution_source})  buyback={result.pr_buyback_cancellation:.0f}万")
-    print(f"  L5 extrapolation: {result.l5_extrapolation_total}/30 ({result.l5_extrapolation_level})")
-    print(f"  L5 traps triggered: {result.l5_traps_triggered}")
-    print(f"  L5 position: {result.position_pct}% ({result.l5_position_label})")
+    print(f"  PR: DC={result.pr_disposable_cash:.0f}万  ratio={result.pr_distribution_ratio:.1f}%({result.pr_distribution_source})  buyback={result.pr_buyback_cancellation:.0f}万")
+    print(f"  L5 估值安全边际率: {result.l5_safety_margin_pct:.1f}%  估值得分: {result.l5_valuation_score}/15  缓冲: {result.l5_downside_score}/5")
+    print(f"  L5 仓位: {result.position_pct}%")
 
     print("\n[DONE] Analysis complete.")
 

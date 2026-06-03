@@ -1,12 +1,10 @@
 """
-Pydantic v2 schemas mapping all 4 YAML rule files.
+Pydantic v2 schemas mapping all 4 YAML rule files — v0.23.
 
-Design principles:
-- Every YAML field has a corresponding Pydantic field — no silent drops.
-- model_validator guards cross-field consistency (e.g. threshold ranges don't overlap,
-  penalty values are consistent, label tags match across sections).
-- All thresholds use float | None for open-ended ranges (min-only or max-only).
-- Enum-style string fields use Literal where the set is closed; str otherwise.
+v0.23 changes:
+- L3: BusinessModelMultiplier → BusinessModelConfig (12-dim additive)
+- L5: MarginOfSafety rewritten for pure valuation protection
+- Scoring: max_raw 85→100, formula changed to additive
 """
 
 from __future__ import annotations
@@ -27,21 +25,18 @@ class ThresholdLine(BaseModel):
     This model accepts both via a validator that normalizes penalty→score.
     """
     min: float | None = Field(default=None, description="Lower bound (inclusive)")
-    max: float | None = Field(default=None, description="Upper bound (exclusive or inclusive per context)")
+    max: float | None = Field(default=None, description="Upper bound")
     score: float | None = Field(default=None, description="Score assigned when value falls in this range")
-    label: str | None = Field(default=None, description="Human-readable label")
-    red_flag: bool | None = Field(default=None, description="If True, this is a red-flag trigger")
-    penalty: float | None = Field(default=None, description="Penalty points (used in quality checks); aliased to score")
-    action: str | None = Field(default=None, description="Special action to take when triggered")
+    label: str | None = Field(default=None)
+    red_flag: bool | None = Field(default=None)
+    penalty: float | None = Field(default=None, description="Aliased to score")
+    action: str | None = Field(default=None)
+    condition: str | bool | None = Field(default=None, description="Boolean condition for non-numeric thresholds")
 
     @model_validator(mode="after")
     def normalize_penalty_to_score(self) -> "ThresholdLine":
-        """If YAML provides 'penalty' but not 'score', treat penalty as score."""
         if self.score is None and self.penalty is not None:
             self.score = self.penalty
-        # Ensure at least one is set
-        if self.score is None:
-            raise ValueError("ThresholdLine requires either 'score' or 'penalty' field")
         return self
 
 
@@ -59,7 +54,7 @@ class AuditorChangeRule(BaseModel):
     enabled: bool = True
     description: str
     lookback_years: int
-    max_changes: int  # >= this triggers veto
+    max_changes: int
 
 
 class ManualBlacklistRule(BaseModel):
@@ -89,7 +84,6 @@ class PriceSurgeRule(BaseModel):
 
 
 class HardGateConfig(BaseModel):
-    """6-item veto gate loaded from hard_gate_rules.yaml."""
     audit_opinion: AuditOpinionRule
     auditor_change: AuditorChangeRule
     manual_blacklist: ManualBlacklistRule
@@ -103,14 +97,12 @@ class HardGateConfig(BaseModel):
 # =============================================================================
 
 class WeightedThresholdGroup(BaseModel):
-    """A sub-score group (e.g. roe, gross_margin) with weight and thresholds."""
     weight: float
     thresholds: list[ThresholdLine]
-    hard_gate: float | None = Field(default=None, description="If value below this, eliminate outright")
+    hard_gate: float | None = Field(default=None)
 
 
 class ScoringCategory(BaseModel):
-    """A scoring category (e.g. financial_quality) with sub-items."""
     weight: float
     roe: WeightedThresholdGroup | None = None
     gross_margin: WeightedThresholdGroup | None = None
@@ -134,13 +126,8 @@ class BonusSection(BaseModel):
 
 
 class PoolThresholds(BaseModel):
-    candidate: float  # >= this → candidate pool
-    watch: float      # >= this → watch pool, below → eliminated
-
-
-class ClassificationRule(BaseModel):
-    """Industry mapping rule."""
-    pass
+    candidate: float
+    watch: float
 
 
 class CompanyClassifier(BaseModel):
@@ -150,26 +137,23 @@ class CompanyClassifier(BaseModel):
 
 
 class L2ScreenerConfig(BaseModel):
-    """L2 screening + company classification loaded from l2_screener_rules.yaml."""
-    scoring: dict[str, Any]  # Flexible: categories may grow
+    scoring: dict[str, Any]
     pool_thresholds: PoolThresholds
     company_classifier: CompanyClassifier
 
 
 # =============================================================================
-# 3. turtle_constants.yaml (the big one)
+# 3. turtle_constants.yaml — v0.23
 # =============================================================================
 
-# --- 3a. OE single-path (v0.19: 删除 income_path, dual_path_signal) ---
+# --- 3a. OE ---
 
 class CashflowPath(BaseModel):
     formula: str
     role: str
-    # v0.19: 此字段可能为 None（仅文本说明）
 
 
 class IndustryPrior(BaseModel):
-    """Industry → prior maintenance CAPEX coefficient."""
     consumer_staples: float = 0.45
     consumer_discretionary: float = 0.50
     healthcare: float = 0.45
@@ -224,7 +208,6 @@ class QualityCheck(BaseModel):
 
 
 class QualityChecks(BaseModel):
-    """v0.19: 四级质量验证（删除 profit_to_cash_conversion）。"""
     oe_to_profit_ratio: QualityCheck
     oe_stability: QualityCheck
     oe_trend: QualityCheck
@@ -232,14 +215,13 @@ class QualityChecks(BaseModel):
 
 
 class OwnersEarnings(BaseModel):
-    """v0.19: 单路径OE，删除 income_path 和 dual_path_signal。"""
     cashflow_path: CashflowPath
     maintenance_capex_coefficient: MaintenanceCapexCoefficient
     quality_label: QualityLabel
     quality_checks: QualityChecks
 
 
-# --- 3b. Penetration Return (v0.19) ---
+# --- 3b. Penetration Return (v0.23: max_score 40→45) ---
 
 class PRThreshold(BaseModel):
     min: float | None = None
@@ -267,79 +249,83 @@ class BuybackConfig(BaseModel):
 
 
 class PenetrationReturn(BaseModel):
-    """v0.19: PR = (可支配现金 × 分配比率 × (1-税) + 回购注销) / 当前市值。"""
     formula: str
     disposable_cash_formula: str = ""
     distribution_ratio: DistributionRatioConfig = Field(default_factory=DistributionRatioConfig)
     buyback: BuybackConfig = Field(default_factory=BuybackConfig)
     thresholds: list[PRThreshold]
-    max_score: float = 40
+    max_score: float = 45  # v0.23: 40→45
     philosophy: str = ""
 
 
-# --- 3c. Margin of Safety (L5) ---
+# --- 3c. L3 Business Model (v0.23: 十二维加法) ---
 
-class ExtrapolationDimension(BaseModel):
+class BusinessModelDimension(BaseModel):
     id: str
     name: str
-    metric: str | None = None
-    scoring: list[ThresholdLine] | dict[str, float]
-    philosophy: str | None = None
+    group: str = ""
+    description: str = ""
+    thresholds: list[ThresholdLine] = Field(default_factory=list)
 
 
-class ExtrapolationLevel(BaseModel):
+class BusinessModelLevel(BaseModel):
     min: float | None = None
     max: float | None = None
     label: str
+    description: str | None = None
 
 
-class Extrapolation(BaseModel):
-    dimensions: list[ExtrapolationDimension]
-    levels: dict[str, ExtrapolationLevel]
+class BusinessModelConfig(BaseModel):
+    """v0.23: L3 十二维商业模式评估 (0-30pt 加法)."""
+    max_score: float = 30
+    max_dim_score: float = 24
+    dimensions: list[BusinessModelDimension] = Field(default_factory=list)
+    levels: dict[str, BusinessModelLevel] = Field(default_factory=dict)
 
 
-class ValueTrapCheck(BaseModel):
-    id: int
+# --- 3d. L5 Margin of Safety (v0.23: 纯估值保护) ---
+
+class ValuationSafetyMargin(BaseModel):
+    max_score: float = 15
+    formula: str = ""
+    thresholds: list[ThresholdLine] = Field(default_factory=list)
+
+
+class DownsideBufferItem(BaseModel):
+    id: str
     name: str
-    trigger: str
-    sub_triggers: list[dict[str, Any]] = Field(default_factory=list)
+    metric: str = ""
+    thresholds: list[ThresholdLine] = Field(default_factory=list)
 
 
-class ValueTrapLevel(BaseModel):
-    max: float | None = None
+class DownsideBuffer(BaseModel):
+    max_score: float = 5
+    items: list[DownsideBufferItem] = Field(default_factory=list)
+
+
+class PositionMatrixThreshold(BaseModel):
     min: float | None = None
-    label: str
-
-
-class ValueTrapChecks(BaseModel):
-    """Value trap checks: items list + levels dict."""
-    items: list[ValueTrapCheck]
-    levels: dict[str, ValueTrapLevel]
-
-
-class PositionMatrixEntry(BaseModel):
+    max: float | None = None
     position_pct: float
-    label: str
+    score: float
+    label: str = ""
+
+
+class PositionMatrix(BaseModel):
+    thresholds: list[PositionMatrixThreshold] = Field(default_factory=list)
 
 
 class MarginOfSafety(BaseModel):
+    """v0.23: L5 纯估值安全边际 (0-25pt)."""
     max_score: float = 25
-    extrapolation: Extrapolation
-    value_trap_checks: ValueTrapChecks
-    position_matrix: dict[str, PositionMatrixEntry]
-    scoring_formula: str
+    discount_rate: float = 0.07
+    discount_rate_logic: str = ""
+    valuation_safety_margin: ValuationSafetyMargin
+    downside_buffer: DownsideBuffer
+    position_matrix: PositionMatrix
 
 
-# --- 3d. Business model multiplier (L3) ---
-
-class BusinessModelMultiplier(BaseModel):
-    excellent: float = 1.2
-    good: float = 1.0
-    medium: float = 0.8
-    poor: str = "reject"
-
-
-# --- 3e. Scoring model ---
+# --- 3e. Scoring ---
 
 class ScoringPool(BaseModel):
     core: float
@@ -394,7 +380,7 @@ class SOTPConfig(BaseModel):
 
 class TaxConfig(BaseModel):
     corporate_income_tax: float = 0.25
-    dividend_withholding: float = 0.0  # v0.22: 股息红利税不再从PR中预扣
+    dividend_withholding: float = 0.0
 
 
 # --- 3i. Company Classification ---
@@ -407,11 +393,11 @@ class CompanyClassification(BaseModel):
 # --- Master Turtle Constants ---
 
 class TurtleConstants(BaseModel):
-    """Complete turtle_constants.yaml mapped to Pydantic."""
+    """Complete turtle_constants.yaml mapped to Pydantic — v0.23."""
     owners_earnings: OwnersEarnings
     penetration_return: PenetrationReturn
+    business_model: BusinessModelConfig  # v0.23: replaces business_model_multiplier
     margin_of_safety: MarginOfSafety
-    business_model_multiplier: BusinessModelMultiplier
     scoring: ScoringModel
     dividend: DividendConfig
     sotp: SOTPConfig
@@ -420,41 +406,21 @@ class TurtleConstants(BaseModel):
 
     @model_validator(mode="after")
     def validate_oe_quality_consistency(self) -> "TurtleConstants":
-        """Ensure OE quality labels and quality_checks thresholds are consistent."""
-        ql = self.owners_earnings.quality_label
         qc = self.owners_earnings.quality_checks
-
-        # trusted: OE_cf/净利润 ≥ 0.8 AND OE_cf CV ≤ 0.3
-        # oe_to_profit_ratio threshold [0.8, ∞) → penalty 0
-        # oe_stability threshold (-∞, 0.3] → penalty 0
-        # Check that these thresholds don't contradict the quality label definitions.
-        # The quality label is a PRE-calculation filter; the quality_checks are POST-calculation penalties.
-        # They must use consistent cutoff values.
-
-        profit_thresholds = qc.oe_to_profit_ratio.thresholds
-        stability_thresholds = qc.oe_stability.thresholds
-
-        # Verify profit ratio 0.8 boundary exists
-        profit_boundaries = {t.min for t in profit_thresholds if t.min is not None}
+        profit_boundaries = {t.min for t in qc.oe_to_profit_ratio.thresholds if t.min is not None}
         if 0.8 not in profit_boundaries:
             raise ValueError(
-                "OE quality: oe_to_profit_ratio must have a threshold at min=0.8 "
-                "to match quality_label.trusted condition (OE_cf/净利润 ≥ 0.8)"
+                "OE quality: oe_to_profit_ratio must have a threshold at min=0.8"
             )
-
-        # Verify stability 0.3 boundary exists
-        stability_boundaries = {t.max for t in stability_thresholds if t.max is not None}
+        stability_boundaries = {t.max for t in qc.oe_stability.thresholds if t.max is not None}
         if 0.3 not in stability_boundaries:
             raise ValueError(
-                "OE quality: oe_stability must have a threshold at max=0.3 "
-                "to match quality_label.trusted condition (OE_cf CV ≤ 0.3)"
+                "OE quality: oe_stability must have a threshold at max=0.3"
             )
-
         return self
 
     @model_validator(mode="after")
     def validate_pr_threshold_ordering(self) -> "TurtleConstants":
-        """PR thresholds must be in descending order of starting_score."""
         thresholds = self.penetration_return.thresholds
         scores = [t.starting_score for t in thresholds]
         for i in range(len(scores) - 1):
@@ -467,37 +433,34 @@ class TurtleConstants(BaseModel):
 
     @model_validator(mode="after")
     def validate_scoring_formula_max(self) -> "TurtleConstants":
-        """Max raw score should match L2+L4+L5: 20+40+25=85."""
-        expected = 85.0
+        """v0.23: max_raw = 100 (L3+L4+L5 = 30+45+25)."""
+        expected = 100.0
         if self.scoring.max_raw != expected:
             raise ValueError(
-                f"Scoring max_raw={self.scoring.max_raw} but L2(20)+L4(40)+L5(25)={expected}"
+                f"Scoring max_raw={self.scoring.max_raw} but expected L3(30)+L4(45)+L5(25)={expected}"
             )
-        # Max final = max_raw × best multiplier
-        expected_final = expected * self.business_model_multiplier.excellent
-        if abs(self.scoring.max_final - expected_final) > 0.01:
+        # v0.23: no multiplier, max_final = max_raw
+        if abs(self.scoring.max_final - expected) > 0.01:
             raise ValueError(
-                f"Scoring max_final={self.scoring.max_final} but expected "
-                f"{expected}×{self.business_model_multiplier.excellent}={expected_final}"
+                f"v0.23: max_final should equal max_raw={expected}, got {self.scoring.max_final}"
             )
         return self
 
     @model_validator(mode="after")
-    def validate_l5_position_matrix_completeness(self) -> "TurtleConstants":
-        """3×3 matrix must have all 9 combinations."""
-        mos = self.margin_of_safety
-        extrap_levels = list(mos.extrapolation.levels.keys())
-        trap_levels = list(mos.value_trap_checks.levels.keys())
+    def validate_business_model_dimensions(self) -> "TurtleConstants":
+        """Ensure 12 dimensions defined."""
+        if len(self.business_model.dimensions) != 12:
+            raise ValueError(
+                f"L3 business_model: expected 12 dimensions, got {len(self.business_model.dimensions)}"
+            )
+        return self
 
-        expected_keys = set()
-        for e in ["high", "medium", "low"]:
-            for t in ["low", "medium", "high"]:
-                expected_keys.add(f"{e}_extrapolation_{t}_trap")
-
-        actual_keys = set(mos.position_matrix.keys())
-        missing = expected_keys - actual_keys
-        if missing:
-            raise ValueError(f"Position matrix missing entries: {missing}")
+    @model_validator(mode="after")
+    def validate_l5_discount_rate(self) -> "TurtleConstants":
+        """Ensure discount rate is reasonable."""
+        dr = self.margin_of_safety.discount_rate
+        if dr <= 0 or dr >= 0.20:
+            raise ValueError(f"L5 discount_rate={dr} out of reasonable range (0, 0.20)")
         return self
 
 
@@ -605,13 +568,13 @@ class AuditProgram(BaseModel):
     name: str
     always_execute: bool = False
     trigger: str | None = None
-    description: str = ""  # Some programs omit description in YAML
+    description: str = ""
     procedure: list[str] | None = None
-    checks: list[Any] | None = None  # Can be list[str] or list[dict]
+    checks: list[Any] | None = None
     contradiction_pairs: list[dict[str, str]] | None = None
     judgment: list[dict[str, Any]] | None = None
     output_fields: list[str] | None = None
-    output: Any | None = None  # Can be list[dict], dict, or str
+    output: Any | None = None
 
 
 class VerificationAgent(BaseModel):
@@ -630,7 +593,7 @@ class CollaborationStep(BaseModel):
 
 
 class DataFlow(BaseModel):
-    shared_context: dict[str, Any]  # Values can be str or nested dict
+    shared_context: dict[str, Any]
     opinion: dict[str, str] | None = None
 
 
@@ -640,18 +603,16 @@ class Collaboration(BaseModel):
 
 
 class AgentConstraints(BaseModel):
-    """Complete agent_constraints.yaml mapped to Pydantic."""
     analysis_agent: AnalysisAgent
     verification_agent: VerificationAgent
     collaboration: Collaboration
 
 
 # =============================================================================
-# Master RuleSet — all 4 configs in one object
+# Master RuleSet
 # =============================================================================
 
 class RuleSet(BaseModel):
-    """The complete set of validated rules loaded from all 4 YAML files."""
     hard_gate: HardGateConfig
     l2_screener: L2ScreenerConfig
     turtle_constants: TurtleConstants

@@ -1,5 +1,42 @@
 # Changelog
 
+## [v0.23] - 2026-06-03 — L3 十二维商业模式评估 + L5 估值安全边际重构 + 加法百分制
+
+### Added
+- **L3 十二维商业模式评估** (`l3_calculator.py`): ROE水平/稳定性, ROIC-ROE差距, 毛利率水平/稳定性(盈利能力5维) + CAPEX/经营CF, 总资产CAGR, 营收CAGR(成熟度3维) + 分红持续性, 股本变动(资本纪律2维) + 管理层稳定性, 盈利真实性(治理2维)
+  - 每维0-2分, 满分24→映射到0-30分
+  - 等级: 优(20-24)/良(14-19)/中(8-13)/差(0-7)
+- **ROIC 计算**: NOPAT / Invested Capital, 用于检测高杠杆伪装高ROE
+
+### Changed
+- **评分公式**: `Final = (L2+L4+L5)×L3` → `Final = L3_30pt + L4_45pt + L5_25pt = 100pt`
+- **L2 降级为纯门控**: 不再参与最终评分, 仅保留淘汰功能
+- **L3 从乘法器变加法**: 旧 `×1.2/×1.0/×0.8/reject` → 新 `0-30 分加法`
+- **L4 满分**: 40→45pt (内部缩放 45/40)
+- **L5 重构为纯估值保护**: 去掉外推可行度6维+价值陷阱5项, 改为估值安全边际率(0-15)+下行缓冲(0-5)+仓位矩阵(0-5)
+  - 折现率: 7% = max(无风险利率+2%, 5%) + 个股风险溢价2%
+  - 合理市值 = 可分配现金 / 7%
+  - 安全边际率 → 仓位映射: ≥30%→15%, 15-30%→10%, 0-15%→5%, <0%→0%
+- **分池阈值**: 核心≥75, 观察50-74, 备选<50 (比旧55→50放宽)
+- **YAML 配置**: `business_model_multiplier` → `business_model` (十二维), `margin_of_safety` 完全重写
+
+### Removed
+- `_estimate_l3()` 方法 (被 L3Calculator 替代)
+- `BusinessModelMultiplier` Pydantic 模型
+- L5 外推可行度 6 维评分函数
+- L5 价值陷阱 5 项检查函数
+- L5 3×3 仓位矩阵旧逻辑
+
+### Files Changed
+- `rules/turtle_constants.yaml` — 重写 business_model + margin_of_safety + scoring 章节
+- `src/rules/schemas.py` — BusinessModelConfig + 新 MarginOfSafety + 更新 validators
+- `src/calculator/turtle_strategy/l3_calculator.py` — 新文件 (~320行)
+- `src/calculator/turtle_strategy/l5_calculator.py` — 完全重写
+- `src/calculator/turtle_strategy/scoring.py` — 集成新 L3/L5 + 百分制缩放
+- `src/reporter/report_generator.py` — 十二维展开 + L5 估值分解展示
+- `CHANGELOG.md`, `PROJECT_STATUS.md`
+
+
 ## [v0.22] - 2026-06-02 — DC 扣除成长性投入 + PR 真实数学回报
 
 ### Changed

@@ -131,19 +131,31 @@ class TestPRCalculatorEdgeCases:
 
 
 class TestL5CalculatorEdgeCases:
-    def test_all_dimensions_populated(self, mock_bundle):
+    def test_downside_buffer_populated(self, mock_bundle):
+        """v0.23: 下行缓冲详情应有3项: 资产底价/股息托底/回购支撑。"""
         l5 = L5Calculator(mock_bundle)
         r = l5.calculate("600519.SH", "白酒")
-        expected = {"revenue_stability", "margin_stability", "roe_stability",
-                    "industry_predictability", "management_stability", "oe_growth_trend"}
-        assert set(r.extrapolation_dims.keys()) == expected
-        for v in r.extrapolation_dims.values():
-            assert 1 <= v <= 5
+        # 验证新的下行缓冲结构
+        assert len(r.downside_buffer_details) == 3
+        detail_ids = {d["id"] for d in r.downside_buffer_details}
+        assert detail_ids == {"asset_floor", "dividend_anchor", "buyback_support"}
+        for d in r.downside_buffer_details:
+            assert 0 <= d["score"] <= 2
+            assert isinstance(d["label"], str)
 
 
 class TestTurtleScorerEdgeCases:
-    def test_l3_estimation(self, mock_bundle):
+    def test_l3_additive_scoring(self, mock_bundle):
+        """v0.23: L3 十二维加法评分 (0-30pt)。"""
         scorer = TurtleScorer(mock_bundle)
         r = scorer.score("600519.SH")
-        assert r.l3_multiplier in (1.0, 1.2, 0.8)
+        # v0.23: L3 是加法得分, 不是乘数
+        assert hasattr(r, 'l3_score')
+        assert 0 <= r.l3_score <= 30
+        assert r.l3_level in ("优", "良", "中", "差", "")
+        # 验证十二维详情
+        assert len(r.l3_dim_scores) == 12
+        for dim_id, dim_info in r.l3_dim_scores.items():
+            assert 0 <= dim_info["score"] <= 2
+            assert dim_info["group"] in ("盈利能力", "成熟度", "资本纪律", "治理")
         assert isinstance(r.pool, str)

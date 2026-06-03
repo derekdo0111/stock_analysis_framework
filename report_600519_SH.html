@@ -50,9 +50,9 @@
 
 <div class="header">
   <h1>贵州茅台 <span style="color:var(--text-dim);font-size:0.7em;">600519.SH</span></h1>
-  <div class="score">11.06</div>
+  <div class="score">23.75</div>
   <span class="pool-tag pool-fallback">备选池</span>
-  <div style="margin-top:8px;color:var(--text-dim);font-size:0.85rem;">龟龟投资策略 v0.19 · 2026-06-01 19:06</div>
+  <div style="margin-top:8px;color:var(--text-dim);font-size:0.85rem;">龟龟投资策略 v0.23 · 2026-06-03 18:17</div>
 </div>
 
 <!-- ====== 1. HardGate 否决检查 ====== -->
@@ -82,38 +82,35 @@
   
   <div class="check-item check-pass">
     <strong>PASS</strong> &nbsp; price_change_60d
-    <span style="color:var(--text-dim);margin-left:8px;">= -6.99</span>
+    <span style="color:var(--text-dim);margin-left:8px;">= -7.14</span>
   </div>
   
 </div>
 
 
 <!-- ====== 2. L2 初筛 + 公司分类 ====== -->
-<h2>2. L2 初筛 &amp; 公司分类</h2>
+<h2>2. L2 初筛 (门控) &amp; 公司分类</h2>
 <div class="grid">
   <div class="card">
-    <h3>L2 初筛 (满分 20)</h3>
+    <h3>L2 初筛 (仅门控, 不参与最终评分)</h3>
     <div class="metric"><span>财务质量</span><span class="metric-val">5.0 / 9</span></div>
     <div class="metric"><span>估值合理性</span><span class="metric-val">2.5 / 6</span></div>
     <div class="metric"><span>流动性健康</span><span class="metric-val">2.0 / 3</span></div>
     <div class="metric"><span>加分项</span><span class="metric-val">1.0 / 2</span></div>
     <div class="metric" style="font-weight:700;border-top:1px solid var(--border);margin-top:6px;padding-top:6px;">
-      <span>L2 总分</span><span class="metric-val">10.5 / 20</span>
+      <span>L2 总分 (仅供参考)</span><span class="metric-val">10.5 / 20</span>
     </div>
-    <div class="bar-wrap"><div class="bar-fill blue" style="width:52%"></div></div>
     <div style="margin-top:8px;font-size:0.82rem;color:var(--text-dim);">分流: 观察池</div>
   </div>
   <div class="card">
     <h3>公司分类</h3>
     <div class="metric"><span>分类</span><span class="metric-val green">STANDARD_CONSUMER</span></div>
     
-    <h3 style="margin-top:20px;">L3 商业模式乘数</h3>
-    <div class="metric"><span>乘数</span><span class="metric-val green">&times; 0.8</span></div>
   </div>
 </div>
 
-<!-- ====== 3. OE 路径B + PR 穿透回报率 (v0.19) ====== -->
-<h2>3. 穿透回报率 (L4) — v0.19 前瞻公式</h2>
+<!-- ====== 3. 穿透回报率 (L4, 0-45pt) ====== -->
+<h2>3. 穿透回报率 (L4) — 核心估值</h2>
 <div class="grid">
   <div class="card">
     <h3>OE 概要 (路径B)</h3>
@@ -124,38 +121,33 @@
     
   </div>
   <div class="card">
-    <h3>L4 打分</h3>
-    <div class="metric"><span>PR (穿透回报率)</span><span class="metric-val red">2.50%</span></div>
-    <div class="metric"><span>起点分</span><span class="metric-val">0.0 / 20</span></div>
+    <h3>L4 打分 (0-45pt)</h3>
+    <div class="metric"><span>PR (穿透回报率)</span><span class="metric-val red">4.33%</span></div>
+    <div class="metric"><span>起点分</span><span class="metric-val">0.0</span></div>
     <div class="metric"><span>质量扣分</span><span class="metric-val red">5.0</span></div>
     <div class="metric" style="font-weight:700;border-top:1px solid var(--border);margin-top:6px;padding-top:6px;">
-      <span>L4 最终得分</span><span class="metric-val yellow">0.0 / 40</span>
+      <span>L4 最终得分</span><span class="metric-val red">0.0 / 45</span>
     </div>
-    <div class="bar-wrap"><div class="bar-fill yellow" style="width:0%"></div></div>
+    <div class="bar-wrap"><div class="bar-fill red" style="width:0%"></div></div>
   </div>
 </div>
 
-<h3>v0.19 PR 公式展开</h3>
+<h3>v0.22 PR 公式展开</h3>
 <div class="card" style="overflow-x:auto;">
   <div style="font-size:0.85rem;color:var(--accent);margin-bottom:12px;">
-    PR = (可支配现金 &times; 分配比率 &times; 0.90 + 回购注销) / 当前市值
+    PR = (可支配现金 &times; 分配比率 + 回购注销) / 当前市值
   </div>
   <table>
     <tr><th>组件</th><th>值</th><th>来源</th></tr>
     <tr>
       <td>当前可支配现金</td>
-      <td>4539466.1 亿</td>
-      <td style="color:var(--text-dim);">经营CF - 投资流出 - 财务费用 + 货币资金 - 限制性货币 - 短期借款 + 交易性金融资产</td>
+      <td>1075.0 亿</td>
+      <td style="color:var(--text-dim);">经营CF - 维持性CAPEX - 并购子公司 - 参股净增 - 财务费用 + 货币资金 - 限制性货币 - 短期借款 + 交易性金融资产</td>
     </tr>
     <tr>
       <td>分配比率</td>
-      <td>0.0%</td>
+      <td>65.9%</td>
       <td style="color:var(--text-dim);">历史外推</td>
-    </tr>
-    <tr>
-      <td>红利税率</td>
-      <td>10%</td>
-      <td style="color:var(--text-dim);">A股红利税默认10%</td>
     </tr>
     <tr>
       <td>回购注销金额</td>
@@ -164,108 +156,190 @@
     </tr>
     <tr style="font-weight:700;border-top:2px solid var(--border);">
       <td>PR (穿透回报率)</td>
-      <td style="color:red;">2.50%</td>
+      <td style="color:red;">4.33%</td>
       <td></td>
     </tr>
   </table>
+  <div style="margin-top:12px;padding:10px 14px;background:#3a2a0a;border-left:3px solid var(--yellow);border-radius:6px;font-size:0.82rem;color:var(--yellow);">
+    注：持股不足1个月需缴纳10%红利税，PR 未预先扣除。
+  </div>
 </div>
 
-<!-- ====== 4. L5 安全边际 ====== -->
-<h2>4. 安全边际 (L5)</h2>
+<!-- ====== 4. L5 估值安全边际 (v0.23) ====== -->
+<h2>4. 安全边际 (L5) — 纯估值保护</h2>
 <div class="grid">
   <div class="card">
-    <h3>外推可行度 (满分 30)</h3>
-    
-    
-    <div class="metric"><span>revenue_stability</span><span class="metric-val">2.0</span></div>
-    
-    <div class="metric"><span>margin_stability</span><span class="metric-val">2.0</span></div>
-    
-    <div class="metric"><span>roe_stability</span><span class="metric-val">2.0</span></div>
-    
-    <div class="metric"><span>industry_predictability</span><span class="metric-val">3.0</span></div>
-    
-    <div class="metric"><span>management_stability</span><span class="metric-val">3.0</span></div>
-    
-    <div class="metric"><span>oe_growth_trend</span><span class="metric-val">2.0</span></div>
-    
-    
+    <h3>估值安全边际率 (0-15分)</h3>
+    <div class="metric"><span>合理市值 (折现率7%)</span><span class="metric-val">1.1 亿</span></div>
+    <div class="metric"><span>安全边际率</span><span class="metric-val red">-30.1%</span></div>
     <div class="metric" style="font-weight:700;border-top:1px solid var(--border);margin-top:6px;padding-top:6px;">
-      <span>外推总分</span><span class="metric-val">14.0 / 30</span>
+      <span>估值安全得分</span><span class="metric-val">0.0 / 15</span>
     </div>
-    <div style="font-size:0.82rem;color:var(--text-dim);margin-top:6px;">评级: 低可行</div>
   </div>
   <div class="card">
-    <h3>价值陷阱排查 (最多扣 7 分)</h3>
+    <h3>下行风险缓冲 (0-5分)</h3>
     
     
-    <div class="flag flag-warn">资产质量</div>
+    <div class="metric"><span>资产底价</span><span class="metric-val">0.0</span></div>
+    <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:4px;">数据不足</div>
     
-    <div class="flag flag-warn">行业趋势</div>
+    <div class="metric"><span>股息托底</span><span class="metric-val">0.0</span></div>
+    <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:4px;">股息在低位</div>
+    
+    <div class="metric"><span>回购支撑</span><span class="metric-val">0.0</span></div>
+    <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:4px;">无回购</div>
     
     
-    <div class="metric" style="margin-top:8px;"><span>陷阱扣分</span><span class="metric-val red">2 / 7</span></div>
-    <div style="font-size:0.82rem;color:var(--text-dim);margin-top:4px;">风险等级: 中风险 &nbsp;|&nbsp; 仓位上限: 2.0% &nbsp;|&nbsp; 0~2%</div>
     <div class="metric" style="font-weight:700;border-top:1px solid var(--border);margin-top:6px;padding-top:6px;">
-      <span>L5 最终得分</span><span class="metric-val yellow">3.3 / 25</span>
+      <span>缓冲得分</span><span class="metric-val">0.0 / 5</span>
     </div>
-    <div class="bar-wrap"><div class="bar-fill yellow" style="width:13%"></div></div>
+  </div>
+</div>
+<div class="grid">
+  <div class="card">
+    <h3>仓位矩阵 (0-5分)</h3>
+    <div class="metric"><span>仓位上限</span><span class="metric-val">0.0%</span></div>
+    <div class="metric"><span>仓位得分</span><span class="metric-val">0.0 / 5</span></div>
+    <div class="metric" style="font-weight:700;border-top:1px solid var(--border);margin-top:6px;padding-top:6px;">
+      <span>L5 最终得分</span><span class="metric-val yellow">0.0 / 25</span>
+    </div>
+    <div class="bar-wrap"><div class="bar-fill yellow" style="width:0%"></div></div>
   </div>
 </div>
 
-<!-- ====== 5. 打分汇总 ====== -->
-<h2>5. 打分汇总</h2>
+<!-- ====== 5. L3 商业模式详情 ====== -->
+<h2>5. L3 商业模式评估 — 十二维</h2>
 <div class="grid">
   <div class="card" style="grid-column:1/-1;">
-    <h3>Final = (L2 + L3 + L4 + L5) &times; L3</h3>
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;text-align:center;margin-top:12px;">
+    <h3>L3 得分: 23.8 / 30 &nbsp;|&nbsp; 等级: 良 &nbsp;|&nbsp; 维度分: 19.0 / 24</h3>
+    <div class="bar-wrap"><div class="bar-fill green" style="width:79%"></div></div>
+  </div>
+  
+  
+  <div class="card">
+    <h3>ROE水平 <span style="font-size:0.75rem;color:var(--text-dim);">(盈利能力)</span></h3>
+    <div class="metric"><span>得分</span><span class="metric-val">2 / 2</span></div>
+    <div style="font-size:0.82rem;color:var(--text-dim);">优秀 ≥20%</div>
+  </div>
+  
+  <div class="card">
+    <h3>ROE稳定性 <span style="font-size:0.75rem;color:var(--text-dim);">(盈利能力)</span></h3>
+    <div class="metric"><span>得分</span><span class="metric-val">2 / 2</span></div>
+    <div style="font-size:0.82rem;color:var(--text-dim);">极稳 CV≤0.25</div>
+  </div>
+  
+  <div class="card">
+    <h3>ROIC-ROE差距 <span style="font-size:0.75rem;color:var(--text-dim);">(盈利能力)</span></h3>
+    <div class="metric"><span>得分</span><span class="metric-val">0 / 2</span></div>
+    <div style="font-size:0.82rem;color:var(--text-dim);">>10pp 高杠杆嫌疑</div>
+  </div>
+  
+  <div class="card">
+    <h3>毛利率水平 <span style="font-size:0.75rem;color:var(--text-dim);">(盈利能力)</span></h3>
+    <div class="metric"><span>得分</span><span class="metric-val">2 / 2</span></div>
+    <div style="font-size:0.82rem;color:var(--text-dim);">优秀 ≥40%</div>
+  </div>
+  
+  <div class="card">
+    <h3>毛利率稳定性 <span style="font-size:0.75rem;color:var(--text-dim);">(盈利能力)</span></h3>
+    <div class="metric"><span>得分</span><span class="metric-val">2 / 2</span></div>
+    <div style="font-size:0.82rem;color:var(--text-dim);">极稳 CV≤0.15</div>
+  </div>
+  
+  <div class="card">
+    <h3>CAPEX/经营CF <span style="font-size:0.75rem;color:var(--text-dim);">(成熟度)</span></h3>
+    <div class="metric"><span>得分</span><span class="metric-val">2 / 2</span></div>
+    <div style="font-size:0.82rem;color:var(--text-dim);">保守 ≤40%</div>
+  </div>
+  
+  <div class="card">
+    <h3>总资产增速 <span style="font-size:0.75rem;color:var(--text-dim);">(成熟度)</span></h3>
+    <div class="metric"><span>得分</span><span class="metric-val">2 / 2</span></div>
+    <div style="font-size:0.82rem;color:var(--text-dim);">稳健 ≤10%</div>
+  </div>
+  
+  <div class="card">
+    <h3>营收增速 <span style="font-size:0.75rem;color:var(--text-dim);">(成熟度)</span></h3>
+    <div class="metric"><span>得分</span><span class="metric-val">2 / 2</span></div>
+    <div style="font-size:0.82rem;color:var(--text-dim);">成熟 0~15%</div>
+  </div>
+  
+  <div class="card">
+    <h3>分红持续性 <span style="font-size:0.75rem;color:var(--text-dim);">(资本纪律)</span></h3>
+    <div class="metric"><span>得分</span><span class="metric-val">2 / 2</span></div>
+    <div style="font-size:0.82rem;color:var(--text-dim);">持续分钱 (每年≥30%, 均值≥40%)</div>
+  </div>
+  
+  <div class="card">
+    <h3>股本变动 <span style="font-size:0.75rem;color:var(--text-dim);">(资本纪律)</span></h3>
+    <div class="metric"><span>得分</span><span class="metric-val">0 / 2</span></div>
+    <div style="font-size:0.82rem;color:var(--text-dim);">明显摊薄 ≥5%</div>
+  </div>
+  
+  <div class="card">
+    <h3>管理层稳定性 <span style="font-size:0.75rem;color:var(--text-dim);">(治理)</span></h3>
+    <div class="metric"><span>得分</span><span class="metric-val">1 / 2</span></div>
+    <div style="font-size:0.82rem;color:var(--text-dim);">数据不足（默认中性）</div>
+  </div>
+  
+  <div class="card">
+    <h3>盈利真实性 <span style="font-size:0.75rem;color:var(--text-dim);">(治理)</span></h3>
+    <div class="metric"><span>得分</span><span class="metric-val">2 / 2</span></div>
+    <div style="font-size:0.82rem;color:var(--text-dim);">含金量高 ≥0.8</div>
+  </div>
+  
+  
+</div>
+
+<!-- ====== 6. 打分汇总 ====== -->
+<h2>6. 打分汇总 — v0.23 百分制</h2>
+<div class="grid">
+  <div class="card" style="grid-column:1/-1;">
+    <h3>Final = L3 + L4 + L5 = 23.8 + 0.0 + 0.0</h3>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;text-align:center;margin-top:12px;">
       <div style="background:var(--bg);padding:14px;border-radius:8px;">
-        <div style="font-size:0.78rem;color:var(--text-dim);">L2 初筛</div>
-        <div style="font-size:1.3rem;font-weight:700;color:var(--accent);">10.5</div>
-        <div style="font-size:0.7rem;color:var(--text-dim);">/20</div>
+        <div style="font-size:0.78rem;color:var(--text-dim);">L3 商业模式</div>
+        <div style="font-size:1.3rem;font-weight:700;color:var(--green);">23.8</div>
+        <div style="font-size:0.7rem;color:var(--text-dim);">/30</div>
       </div>
       <div style="background:var(--bg);padding:14px;border-radius:8px;">
         <div style="font-size:0.78rem;color:var(--text-dim);">L4 穿透回报率</div>
-        <div style="font-size:1.3rem;font-weight:700;color:yellow;">0.0</div>
-        <div style="font-size:0.7rem;color:var(--text-dim);">/40</div>
+        <div style="font-size:1.3rem;font-weight:700;color:red;">0.0</div>
+        <div style="font-size:0.7rem;color:var(--text-dim);">/45</div>
       </div>
       <div style="background:var(--bg);padding:14px;border-radius:8px;">
         <div style="font-size:0.78rem;color:var(--text-dim);">L5 安全边际</div>
-        <div style="font-size:1.3rem;font-weight:700;color:yellow;">3.3</div>
+        <div style="font-size:1.3rem;font-weight:700;color:yellow;">0.0</div>
         <div style="font-size:0.7rem;color:var(--text-dim);">/25</div>
-      </div>
-      <div style="background:var(--bg);padding:14px;border-radius:8px;">
-        <div style="font-size:0.78rem;color:var(--text-dim);">L3 乘数</div>
-        <div style="font-size:1.3rem;font-weight:700;color:var(--text-dim);">&times;0.8</div>
       </div>
       <div style="background:rgba(88,166,255,0.1);padding:14px;border-radius:8px;border:1px solid var(--accent);">
         <div style="font-size:0.78rem;color:var(--text-dim);">最终得分</div>
-        <div style="font-size:1.6rem;font-weight:700;color:var(--red);">11.06</div>
+        <div style="font-size:1.6rem;font-weight:700;color:var(--red);">23.75</div>
         <div style="font-size:0.7rem;color:var(--text-dim);">备选池</div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ====== 6. 管线 ====== -->
-<h2>6. 处理管线</h2>
+<!-- ====== 7. 管线 ====== -->
+<h2>7. 处理管线 — v0.23</h2>
 <div class="pipeline">
   <div class="step step-done">HardGate</div>
-  <div class="step step-done">L2初筛</div>
+  <div class="step step-done">L2门控</div>
   <div class="step step-done">公司分类</div>
-  <div class="step step-done">OE路径B</div>
+  <div class="step step-done">L3十二维</div>
   <div class="step step-done">穿透回报率</div>
-  <div class="step step-done">L5安全边际</div>
-  <div class="step step-done">乘法打分</div>
+  <div class="step step-done">L5估值安全</div>
+  <div class="step step-done">加法百分制</div>
   <div class="step step-skip">Agent分析</div>
   <div class="step step-skip">Agent验证</div>
 </div>
 
-<!-- ====== 7. Agent 分析 ====== -->
+<!-- ====== 8. Agent 分析 ====== -->
 
 
 <div class="footer">
-  龟龟投资策略框架 v0.19 · 本报告仅供研究参考，不构成投资建议。<br>
-  生成时间: 2026-06-01 19:06
+  龟龟投资策略框架 v0.23 · 本报告仅供研究参考，不构成投资建议。<br>
+  生成时间: 2026-06-03 18:17
 </div>
 </body></html>

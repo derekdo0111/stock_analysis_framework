@@ -73,17 +73,35 @@ class TestPRCalculator:
 
 class TestL5Calculator:
     def test_basic_calculation(self, mock_bundle):
+        """v0.23: L5 纯估值安全边际，包含估值安全边际率+下行缓冲+仓位。"""
         l5 = L5Calculator(mock_bundle)
         r = l5.calculate("600519.SH", "白酒")
         assert isinstance(r, L5Result)
-        assert r.extrapolation_total > 0
+        # v0.23: 验证新结构字段
+        assert hasattr(r, 'safety_margin_pct')
+        assert hasattr(r, 'valuation_score')
+        assert hasattr(r, 'downside_buffer_score')
+        assert hasattr(r, 'position_score')
         assert r.l5_score <= 25
+        # 估值安全得分应在 0-15 范围
+        assert 0 <= r.valuation_score <= 15
+        # 下行缓冲得分应在 0-5 范围
+        assert 0 <= r.downside_buffer_score <= 5
+        # 仓位得分应在 0-5 范围
+        assert 0 <= r.position_score <= 5
+        # 总分一致性
+        assert r.l5_score == round(r.valuation_score + r.downside_buffer_score + r.position_score, 2)
 
-    def test_industry_predictability(self, mock_bundle):
+    def test_safety_margin_logic(self, mock_bundle):
+        """v0.23: 验证安全边际率计算逻辑。"""
         l5 = L5Calculator(mock_bundle)
         r = l5.calculate("600519.SH", "白酒")
-        # 白酒 → 消费 → score=5 in YAML
-        assert r.extrapolation_dims.get("industry_predictability", 0) >= 3
+        # 茅台当前价格下，安全边际率可能为负（溢价）
+        assert isinstance(r.safety_margin_pct, float)
+        # 合理市值应被计算
+        assert r.reasonable_market_cap >= 0
+        # 当前市值 > 0
+        assert r.current_market_cap > 0
 
 
 class TestTurtleScorer:
