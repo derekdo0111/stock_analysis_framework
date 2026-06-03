@@ -1,5 +1,43 @@
 # Changelog
 
+## [v0.27] - 2026-06-04 — 三阶段LLM统一管线：商业检索 → 分析Agent → 交叉验证
+
+### Added
+- **商业知识检索 Agent** (`business_retrieval_agent.py`): Phase 3.5，LLM + web_search tool calling 获取5类实时商业信息（商业模式/管理层/行业地位/风险监管/分红回购），标注置信度+来源URL
+- **web_search 工具** (`tools.py`): Tavily/SerpAPI 搜索适配，支持 tool calling 多轮循环，定义标准 tool schema
+- **三模型独立配置** (`client.py`): `LLM_RETRIEVAL_MODEL` / `LLM_ANALYSIS_MODEL` / `LLM_VALIDATION_MODEL` 三环境变量，默认均为 `deepseek-chat`，共用同一 API key
+- **LLMClient.chat_with_tools()**: 多轮 tool calling 对话方法，最多5轮，自动执行搜索并回传结果
+- **brief.md Section 5**: 新增「五、LLM 商业知识检索」区块，将商业检索结果作为分析 Agent 的输入上下文
+
+### Changed
+- **分析 Agent 重构** (`analysis_agent.py`): 输入从 `FinalScore + profile` 改为完整 `brief.md`（含原始数据+得分+财报洞察+商业知识），System prompt 增加「利用商业知识作为行业背景」指引
+- **交叉验证 Agent 重构** (`cross_validation_agent.py`): 输入从 `brief.md` 改为 `analysis报告 + brief.md(源数据)`，验证靶子从管线得分变为分析报告结论。System prompt 改为「事实核查员」角色：✓源数据可支撑 / ⚠过度解读 / ✗与源数据矛盾 / ?缺乏证据
+- **brief.md Section 4 重写**: 从「交叉验证提示」改为「分析报告撰写指引」
+- **CLI 统一管线** (`cli.py`): 
+  - 移除 `--llm` / `--cross-validate` / `--brief` 三个独立 flag
+  - 新增 `--no-llm` 参数跳过 LLM 阶段
+  - 默认走完整管线：Phase 1→2→3→3.5→4→5a→5b→6
+- **Phase 3.5 新增**: 商业知识检索 LLM (含 web_search tool calling)
+
+### Design
+- 三阶段 LLM 管线彻底分离：商业检索(知识广度+搜索) → 分析Agent(推理+长篇写作) → 交叉验证(严格JSON+事实核查)
+- 分析 Agent 的交叉验证靶子从"管线得分"改为"分析报告结论"——v0.26 已将管线 vs 财报洞察矛盾率降至40%，真正需要验证的是 LLM 分析 Agent 的推理偏差
+- 商业检索前置到 Phase 4 之前，让 brief.md 携带完整商业知识，分析 Agent 无需自行搜索
+- 降级链：无 API Key → Phase 3.5 跳过 → Phase 5a 降级 local_analysis_engine → Phase 5b 降级 _fallback_validate
+
+### Files
+- `src/llm/tools.py` — 新文件
+- `src/llm/business_retrieval_agent.py` — 新文件
+- `src/llm/client.py` — 修改（+chat_with_tools(), +三模型配置）
+- `src/llm/analysis_agent.py` — 重构（输入 brief.md）
+- `src/llm/cross_validation_agent.py` — 重构（验证分析报告）
+- `src/reporter/brief_md_builder.py` — 修改（+Section 5, 重写 Section 4）
+- `src/cli.py` — 重构（统一管线，移除分叉）
+- `.env.example` — 修改（+TAVILY_API_KEY, +三模型 env var）
+- `pyproject.toml`, `CHANGELOG.md`, `PROJECT_STATUS.md`, `README.md`, `TRACEABILITY.md`, `docs/plan.md`, `.codebuddy/memory/MEMORY.md`
+
+---
+
 ## [v0.26] - 2026-06-03 — Bug修复：取数粒度 + 单位换算 + 送转股 + NaN防御
 
 ### Fixed

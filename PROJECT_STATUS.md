@@ -8,11 +8,12 @@
 | 阶段四 (质量加固) | 🟢 完成 | GitHub Actions CI(ruff+mypy+pytest) + 162测试 + ruff零错误 + mypy零错误 |
 | 阶段五 (回测验证) | 🟡 代码完成 | Walk-Forward 6窗口 + 管线运行 + 分红验证 + 统计 + 报告 —— 代码已写完、测试通过，**待真数据跑回测** |
 
-| 阶段六 (财报深度分析+交叉验证) | 🟢 完成 | 7模块财报深度分析(纯Python) + LLM商业知识检索 + 三维交叉验证(管线vs财报洞察vs LLM知识) + v0.26取数粒度/NaN防御/单位换算修复，矛盾率57%→40% |
+| 阶段六 (三阶段LLM统一管线) | 🟢 完成 | 商业检索LLM(web_search) → 分析Agent(full brief.md) → 交叉验证(验证分析结论) + 三模型独立配置 + CLI统一入口 |
 
-**当前版本**: v0.26 — Bug修复：取数粒度+单位换算+送转股+NaN防御
+**当前版本**: v0.27 — 三阶段LLM统一管线：商业检索(web_search) → 分析Agent(full brief.md) → 交叉验证(验证分析结论)
 
 **版本历史**:
+- v0.27: 商业检索LLM(web_search tool calling) + 分析Agent(full brief.md输入) + 交叉验证重构(验证分析报告结论) + CLI统一管线(移除分叉)
 - v0.26: 修复管线vs财报洞察矛盾率(57%→40%) + 年报过滤 + 列名修复 + NaN防御 + 送转股排除
 - v0.25: 7模块财报深度分析 + LLM商业知识检索(合并交叉验证) + 三维对比 + 删除DuckDuckGo
 - v0.24: DuckDuckGo Web 搜索（5类广义商业研究）+ brief.md 组装（Tushare+得分+Web）+ LLM 交叉验证
@@ -27,7 +28,7 @@
 
 **质量门禁**: ruff ✅ / mypy ✅ / YAML加载 ✅
 
-**数据源**: Tushare(主) + akshare(备用) + 财报深度分析(v0.25) + LLM商业知识检索(v0.25) + Web+LLM提取(Layer3) + 年报PDF(降级)
+**数据源**: Tushare(主) + akshare(备用) + 财报深度分析(v0.25) + LLM商业知识检索(web_search, v0.27) + Web+LLM提取(Layer3) + 年报PDF(降级)
 
 **分池阈值**: 核心池≥75 / 观察池50-74 / 备选池<50
 

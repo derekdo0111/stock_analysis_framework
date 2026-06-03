@@ -7,7 +7,7 @@
 > - **连通**：❌零生产引用 / ✅被生产代码import / —不适用（非代码项）
 > - **测试**：❌无测试文件 / ✅有测试且函数>0 / —不适用（非代码项）
 >
-> 最后更新：2026-06-03 (v0.26)
+> 最后更新：2026-06-04 (v0.27)
 
 ---
 
@@ -114,7 +114,7 @@
 | R03 | templates/ | src/reporter/templates/ | ✅ | — | — | analysis_report.html + rich_brief.html |
 | R04 | unit_converter.py | src/reporter/unit_converter.py | ✅ | ✅ | ❌ | 可配置单位转换层（tushare→亿元），被 brief_builder 引用 |
 | R05 | brief_builder.py | src/reporter/brief_builder.py | ✅ | ✅ | ❌ | 简报组装器，从 bundle+FinalScore 提取趋势+快照 |
-| R06 | brief_md_builder.py | src/reporter/brief_md_builder.py | ✅ | ✅ | ❌ | v0.25: brief.md数据底稿组装（Tushare+得分+财报洞察+交叉验证） |
+| R06 | brief_md_builder.py | src/reporter/brief_md_builder.py | ✅ | ✅ | ❌ | v0.27: 重构为5区块 (Tushare+得分+财报洞察+分析指引+商业知识) |
 | R07 | cross_validated_report.html | src/reporter/templates/cross_validated_report.html | ✅ | — | — | v0.24: 含交叉验证结论的HTML报告模板 |
 
 ## 10. src/rules/
@@ -131,7 +131,7 @@
 | ID | 设计项 | 路径 | 实现 | 连通 | 测试 | 说明 |
 |:--:|--------|------|:--:|:--:|:--:|------|
 | M01 | client.py | src/llm/client.py | ✅ | ✅ | ✅ | orchestrator, 2 agent |
-| M02 | analysis_agent.py | src/llm/analysis_agent.py | ✅ | ✅ | ✅ | orchestrator |
+| M02 | analysis_agent.py | src/llm/analysis_agent.py | ✅ | ✅ | ✅ | v0.27: 重构输入为完整 brief.md (含原始数据+得分+财报洞察+商业知识) |
 | M03 | verification_agent.py | src/llm/verification_agent.py | ✅ | ✅ | ✅ | orchestrator |
 | M04 | orchestrator.py | src/llm/orchestrator.py | ✅ | ✅ | ✅ | cli.py |
 | M05 | provider.py | src/llm/provider.py | ❌ | — | — | 未实现——多Provider适配 |
@@ -139,7 +139,9 @@
 | M07 | schema.py | src/llm/schema.py | ❌ | — | — | 未实现——分析/验证Pydantic Schema |
 | M08 | cache.py | src/llm/cache.py | ❌ | — | — | 未实现 |
 | M09 | prompt_builder.py | src/llm/prompt_builder.py | ❌ | — | — | 未实现——Prompt构建器 |
-| M10 | cross_validation_agent.py | src/llm/cross_validation_agent.py | ✅ | ✅ | ❌ | v0.25: 合并商业知识检索+三维交叉验证(管线vs财报洞察vs LLM知识) |
+| M10 | cross_validation_agent.py | src/llm/cross_validation_agent.py | ✅ | ✅ | ❌ | v0.27: 重构为验证分析报告结论 vs brief.md源数据 (fact-check模式) |
+| M11 | business_retrieval_agent.py | src/llm/business_retrieval_agent.py | ✅ | ✅ | ❌ | v0.27: 新增商业知识检索 Agent (web_search tool calling) |
+| M12 | tools.py | src/llm/tools.py | ✅ | ✅ | ❌ | v0.27: 新增 web_search tool schema + Tavily/SerpAPI 执行 |
 
 ## 12. src/agents/
 
@@ -181,12 +183,12 @@
 | src/calculator/ | 11 | 6 | 5 | 0 | 6/11 | 5 | 6 |
 | src/reporter/ | 7 | 6 | 1 | 0 | 5/6 | 1 | 4 |
 | src/rules/ | 4 | 2 | 0 | 2 | 2/2 | 2 | 0 |
-| src/llm/ | 10 | 5 | 0 | 5 | 5/5 | 4 | 1 |
+| src/llm/ | 12 | 7 | 0 | 5 | 7/7 | 4 | 3 |
 | src/agents/ | 3 | 0 | 0 | 3 | — | — | — |
 | docs/ | 5 | 1 | 0 | 4 | — | — | — |
 | examples/ | 1 | 1 | 0 | 0 | — | — | — |
-| **总计** | **83** | **54** | **15** | **15** | **30/44** | **24** | **19** |
+| **总计** | **85** | **56** | **15** | **15** | **32/46** | **24** | **19** |
 
-**连通率：30/44 = 68.2%** (代码模块中被生产管线引用的比例)
-**测试覆盖率：24/44 = 54.5%** (代码模块中有 ≥1 个测试函数的比例)
-(v0.26, 2026-06-03 — 取数粒度/列名修复/NaN防御/单位换算/送转股排除)
+**连通率：32/46 = 69.6%** (代码模块中被生产管线引用的比例)
+**测试覆盖率：24/46 = 52.2%** (代码模块中有 ≥1 个测试函数的比例)
+(v0.27, 2026-06-04 — 三阶段LLM统一管线：商业检索 → 分析Agent → 交叉验证)

@@ -7,13 +7,24 @@ LLM 客户端 — DeepSeek / OpenAI / Anthropic 统一适配 + tenacity 重试 +
 - Anthropic Claude-3.5-Sonnet
 - 自动选择可用 provider (env var配置)
 - 结构化输出（JSON mode）
+- Tool Calling 多轮对话 (chat_with_tools) — v0.27 新增
+- 三模型独立配置 (检索/分析/验证) — v0.27 新增
+
+用法:
+    from src.llm.client import LLMClient, LLMConfig
+
+    # 默认模型
+    client = LLMClient()
+
+    # 指定模型（如检索Agent用独立模型）
+    client = LLMClient(model=LLMConfig.retrieval_model())
 """
 
 from __future__ import annotations
 
 import json
 import os
-from typing import Any
+from typing import Any, Callable
 
 from loguru import logger
 from tenacity import (
@@ -33,10 +44,14 @@ class LLMConfig:
 
     环境变量:
         LLM_PROVIDER: deepseek | openai | anthropic (默认自动检测)
-        LLM_MODEL: 模型名 (默认 deepseek-chat)
+        LLM_MODEL: 默认模型名 (默认 deepseek-chat)
         DEEPSEEK_API_KEY: DeepSeek API密钥
         OPENAI_API_KEY: OpenAI API密钥
         ANTHROPIC_API_KEY: Anthropic API密钥
+
+        LLM_RETRIEVAL_MODEL: 商业检索Agent模型 (可选，默认同 LLM_MODEL)
+        LLM_ANALYSIS_MODEL: 分析Agent模型 (可选，默认同 LLM_MODEL)
+        LLM_VALIDATION_MODEL: 交叉验证Agent模型 (可选，默认同 LLM_MODEL)
     """
 
     @staticmethod
@@ -46,9 +61,24 @@ class LLMConfig:
 
     @staticmethod
     def model() -> str:
-        """返回模型名，DeepSeek 默认 deepseek-chat (V3/Flash等效)。"""
+        """返回默认模型名，DeepSeek 默认 deepseek-chat (V4 Flash等效)。"""
         default = "deepseek-chat"
         return os.environ.get("LLM_MODEL", default)
+
+    @staticmethod
+    def retrieval_model() -> str:
+        """Phase 3.5 商业检索Agent模型 (需要 tool calling)。"""
+        return os.environ.get("LLM_RETRIEVAL_MODEL", LLMConfig.model())
+
+    @staticmethod
+    def analysis_model() -> str:
+        """Phase 5a 分析Agent模型 (需要长篇写作)。"""
+        return os.environ.get("LLM_ANALYSIS_MODEL", LLMConfig.model())
+
+    @staticmethod
+    def validation_model() -> str:
+        """Phase 5b 交叉验证Agent模型 (需要严格 JSON)。"""
+        return os.environ.get("LLM_VALIDATION_MODEL", LLMConfig.model())
 
     @staticmethod
     def api_key() -> str:
@@ -177,6 +207,118 @@ class LLMClient:
             max_tokens=max_tokens,
         )
         return resp.content[0].text
+
+    # ══════════════════════════════════════════════════════════
+    # Tool Calling (v0.27 新增)
+    # ══════════════════════════════════════════════════════════
+
+    def chat_with_tools(
+        self,
+        system_prompt: str,
+        user_message: str,
+        tools: list[dict],
+        tool_executor: Callable[[str, dict[str, Any]], str],
+        *,
+        temperature: float = 0.3,
+        max_turns: int = 5,
+        max_tokens: int = 4096,
+    ) -> str:
+        """多轮 tool calling 对话。
+
+        LLM 可在推理过程中多次调用工具（如 web_search），
+        每次调用结果会回传，直到模型输出最终文本。
+
+        Args:
+            system_prompt: 系统提示词
+            user_message: 用户消息
+            tools: 工具定义列表 (OpenAI/DeepSeek 格式)
+            tool_executor: 工具执行回调 (tool_name, arguments) -> result_text
+            temperature: 采样温度
+            max_turns: 最大工具调用轮次 (防止无限循环)
+            max_tokens: 每轮最大生成 token 数
+
+        Returns:
+            最终的模型文本响应
+
+        Raises:
+            LLMError: API 调用失败或超出最大轮次
+        """
+        if self._provider not in ("deepseek", "openai"):
+            # Anthropic 暂不支持 tool calling 的直接模式，降级为单次调用
+            logger.warning("Anthropic 暂不支持 tool calling，使用单次调用")
+            return self.chat(
+                system_prompt=system_prompt,
+                user_message=user_message,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
+        ]
+
+        for turn in range(max_turns):
+            try:
+                resp = self._client.chat.completions.create(
+                    model=self._model,
+                    messages=messages,
+                    tools=tools,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
+            except Exception as e:
+                msg = str(e)
+                if "429" in msg or "rate" in msg.lower():
+                    raise LLMError(f"Rate limited in tool calling: {msg}") from e
+                raise LLMError(f"Tool calling failed: {msg}") from e
+
+            choice = resp.choices[0]
+            msg = choice.message
+
+            # 如果有 tool_calls，执行工具并回传结果
+            if msg.tool_calls:
+                # 添加 assistant 消息（含 tool_calls）
+                messages.append({
+                    "role": "assistant",
+                    "content": msg.content or "",
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments,
+                            },
+                        }
+                        for tc in msg.tool_calls
+                    ],
+                })
+
+                # 执行每个 tool call
+                for tc in msg.tool_calls:
+                    func_name = tc.function.name
+                    try:
+                        func_args = json.loads(tc.function.arguments)
+                    except json.JSONDecodeError:
+                        func_args = {}
+
+                    logger.info(f"  [tool] {func_name}({func_args.get('query', '')[:40]}...)")
+                    result_text = tool_executor(func_name, func_args)
+
+                    # 添加 tool 响应消息
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": result_text,
+                    })
+
+                continue  # 继续下一轮，让 LLM 处理工具结果
+
+            # 无 tool_calls，返回最终文本
+            return msg.content or ""
+
+        raise LLMError(f"Tool calling 达到最大轮次 ({max_turns})，仍未获得最终响应")
 
     def chat_json(
         self,

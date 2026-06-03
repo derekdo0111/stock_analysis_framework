@@ -1,5 +1,10 @@
 """
-分析 Agent — CFA 价值投资研究员 v1.0。
+分析 Agent — CFA 价值投资研究员 v1.1 (v0.27 重构)。
+
+v0.27 变更:
+- 输入从 FinalScore + profile 改为完整 brief.md（含原始数据+得分+财报洞察+商业知识）
+- 使用 LLM_ANALYSIS_MODEL 独立模型配置
+- System prompt 增加「利用商业知识作为行业背景」指引
 
 从 agent_constraints.yaml 加载:
 - 第一层: 专业身份 (CFA持证人，15年A股经验)
@@ -16,12 +21,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-import pandas as pd
 from loguru import logger
 
 from src.llm.client import LLMClient, LLMConfig, LLMError
 from src.rules.loader import load_rules
-from src.calculator.turtle_strategy.scoring import FinalScore
 
 
 @dataclass
@@ -44,6 +47,9 @@ class AnalysisResult:
     # 红旗警告
     red_flags: list[str] = field(default_factory=list)
 
+    # 完整分析报告文本 (v0.27 新增)
+    full_report: str = ""
+
     # 状态
     success: bool = False
     error: str = ""
@@ -53,49 +59,52 @@ class AnalysisResult:
 
 
 class AnalysisAgent:
-    """CFA 价值投资研究员 — 9模块定性分析。"""
+    """CFA 价值投资研究员 — 9模块定性分析。
+
+    v0.27: 输入改为完整 brief.md（含 Tushare原始数据 + 管线得分 +
+           财报深度分析洞察 + 商业知识检索结果）。
+    """
 
     def __init__(self, client: LLMClient | None = None):
         if client is None and LLMConfig.is_configured():
-            client = LLMClient()
+            client = LLMClient(model=LLMConfig.analysis_model())
         self._client = client
         self._rules = load_rules()
         self._cfg = self._rules.agent_constraints.analysis_agent
 
     def analyze(
         self,
-        final_score: FinalScore,
-        profile: dict[str, Any] | None = None,
+        brief_md: str,
+        company_name: str = "",
+        ts_code: str = "",
     ) -> AnalysisResult:
-        """对一只股票执行 9 模块定性分析。
+        """基于完整 brief.md 撰写个性化投资分析报告。
 
         Args:
-            final_score: 阶段二乘法打分结果
-            profile: 额外 Python 计算数据
+            brief_md: 完整数据底稿（5个Section: Tushare原始数据 + 管线得分 +
+                      财报洞察 + 分析指引 + 商业知识检索结果）
+            company_name: 公司名称
+            ts_code: 股票代码
         """
         result = AnalysisResult(
-            ts_code=final_score.ts_code,
-            name=final_score.name,
+            ts_code=ts_code,
+            name=company_name,
         )
 
         if self._client is None:
-            # 使用本地 Python 规则引擎代替 LLM
-            from src.llm.local_analysis_engine import run_local_analysis
-            local = run_local_analysis(final_score, profile)
-            # 复制本地分析结果到 result
-            result.success = True
-            result.qualitative_total = local.qualitative_total
-            result.module_scores = local.module_scores
-            result.module_details = local.module_details
-            result.business_model = local.business_model
-            result.business_model_reasoning = local.business_model_reasoning
-            result.red_flags = local.red_flags
-            result.error = ""
+            # LLM 不可用，使用 Python 默认保守打分
+            self._apply_default_scoring(result)
+            result.full_report = (
+                f"## {company_name} ({ts_code}) — 默认保守分析\n\n"
+                "*(LLM API 不可用，使用 Python 规则引擎默认打分)*\n\n"
+                "各模块均使用默认保守分（2.5/5），仅供参考。"
+                "建议配置 DEEPSEEK_API_KEY 以获得完整的 LLM 分析。\n"
+            )
             return result
 
         # 构建 Prompt
         system_prompt = self._build_system_prompt()
-        user_message = self._build_user_message(final_score, profile)
+        user_message = self._build_user_message(brief_md, company_name, ts_code)
 
         try:
             raw = self._client.chat_json(
@@ -115,16 +124,17 @@ class AnalysisAgent:
             result.business_model_reasoning = str(raw.get("business_model", {}).get("reasoning", ""))
             result.red_flags = raw.get("red_flags", [])
             result.module_details = raw.get("module_details", [])
+            result.full_report = raw.get("full_report", "")
 
         except (LLMError, Exception) as e:
             logger.error(f"AnalysisAgent failed: {e}")
             result.error = str(e)
-            self._apply_default_scoring(result, final_score)
+            self._apply_default_scoring(result)
 
         return result
 
     def _build_system_prompt(self) -> str:
-        """构建系统提示词 — 注入四层约束。"""
+        """构建系统提示词 — 注入四层约束 + v0.27 商业知识指引。"""
         cfg = self._cfg
         parts = []
 
@@ -140,10 +150,10 @@ class AnalysisAgent:
         must_not = "\n".join([f"- {m.rule}" for m in cfg.behavior.must_not_do])
         parts.append(f"""## 行为边界
 ### 必须做到
-{must}
+{ must }
 
 ### 禁止行为
-{must_not}""")
+{ must_not }""")
 
         # 第三层: Rubric 量表 (简化版)
         rubric_lines = []
@@ -154,7 +164,19 @@ class AnalysisAgent:
                 rubric_lines.append(f"  {s.score}分: {s.description[:80]}")
         parts.append("## 打分量表\n" + "\n".join(rubric_lines))
 
-        # 第四层: 输出格式
+        # v0.27: 商业知识指引
+        parts.append("""## 商业知识使用指引
+数据底稿中「五、LLM 商业知识检索」部分已经包含了该公司的商业模式、管理层、
+行业地位、风险监管、分红回购等实时商业信息。请将这些知识作为你的行业背景
+和分析上下文，用于辅助 9 模块定性打分和商业模式判断。
+
+注意：
+- 商业知识不是你重新检索的结果，而是已经准备好的输入
+- 商业知识中的置信度标注（high/medium/low）反映了信息可靠性
+- 低置信度的商业知识应谨慎使用，与其他数据交叉验证
+- 如有矛盾，优先采信 Tushare 原始数据和财报深度分析定量结果""")
+
+        # 第四层: 输出格式 (v0.27: 新增 full_report 字段)
         parts.append("""## 输出格式 (严格 JSON)
 {
   "module_scores": {"护城河深度": 4, "管理层质量": 3, ...},
@@ -169,7 +191,8 @@ class AnalysisAgent:
     }
   ],
   "business_model": {"judgment": "优|良|中|差", "reasoning": "...(≤300字)"},
-  "red_flags": ["发现的问题1", "问题2"]
+  "red_flags": ["发现的问题1", "问题2"],
+  "full_report": "完整的个性化投资分析报告文本，包含：\\n1. 公司概况与商业模式概述\\n2. 9模块逐项分析\\n3. 综合评分与风险评估\\n4. 红旗警告\\n5. 总体评价（不给出买卖建议）"
 }
 
 重要: 每个模块的 evidence 必须使用三段式证据链:
@@ -180,40 +203,47 @@ class AnalysisAgent:
         return "\n\n".join(parts)
 
     def _build_user_message(
-        self, fs: FinalScore, profile: dict[str, Any] | None
+        self,
+        brief_md: str,
+        company_name: str,
+        ts_code: str,
     ) -> str:
-        """构建用户消息 — 注入 Python 计算结果。"""
-        lines = [
-            f"## 股票: {fs.name} ({fs.ts_code})",
-            "",
-            "### 量化打分结果 (阶段二 Python 计算)",
-            f"- L2 初筛得分: {fs.l2_score}/20",
-            f"- L3 商业模式乘数: {fs.l3_multiplier}",
-            f"- L4 穿透回报率得分: {fs.l4_score}/40",
-            f"- L5 安全边际得分: {fs.l5_score}/25",
-            f"- 最终得分: {fs.final_score}",
-            f"- 所属池: {fs.pool}",
-            f"- 穿透回报率: {fs.pr_pct:.2f}%",
-            f"- OE 质量标签: {fs.oe_quality}",
-            f"- 建议仓位: {fs.position_pct}%",
-        ]
-        if profile:
-            lines.append("\n### 补充数据")
-            for k, v in profile.items():
-                lines.append(f"- {k}: {v}")
+        """构建用户消息 — v0.27: 传入完整 brief.md。
 
-        lines.append("\n请基于以上量化数据和你的专业判断，输出9模块分析JSON。")
+        截断过长的文本以适配 LLM 上下文窗口。
+        """
+        max_chars = 14000
+        brief_truncated = brief_md
+        if len(brief_md) > max_chars:
+            brief_truncated = brief_md[:max_chars] + "\n\n...(内容已截断)"
+
+        lines = [
+            f"## 股票: {company_name} ({ts_code})",
+            "",
+            "以下是完整的数据底稿，包含：",
+            "- 一、Tushare 原始数据（三大报表+财务指标+估值+分红）",
+            "- 二、管线计算得分（L2-L5 量化打分）",
+            "- 三、财报深度分析洞察（7模块 Python 确定性计算）",
+            "- 四、分析报告撰写指引",
+            "- 五、LLM 商业知识检索（5类商业实时信息）",
+            "",
+            "---",
+            brief_truncated,
+            "---",
+            "",
+            "请基于以上完整数据底稿，撰写个性化投资分析报告并输出 JSON。",
+            "请充分利用 Section 5 中的商业知识作为行业背景。",
+        ]
         return "\n".join(lines)
 
-    def _apply_default_scoring(self, result: AnalysisResult, fs: FinalScore) -> None:
+    def _apply_default_scoring(self, result: AnalysisResult) -> None:
         """LLM 不可用时使用 Python 默认打分 (保守策略)。"""
         result.success = True  # 视为"执行成功"（用默认值）
         result.error = "LLM不可用，使用Python默认保守打分"
-        # 基于 L2 分和 L3 乘数估算定性分
-        base = fs.l2_score / 20.0 * 5.0  # 将L2映射到0-5量级
-        result.qualitative_total = round(base * 9, 1)  # 9模块
+        result.qualitative_total = 20.0
         result.module_scores = {
-            mod.name: round(base, 1)
+            mod.name: 2.5
             for mod in self._cfg.rubric.modules
         }
-        result.business_model = fs.business_model
+        result.business_model = "良"
+        result.business_model_reasoning = "默认保守打分（LLM 不可用）"

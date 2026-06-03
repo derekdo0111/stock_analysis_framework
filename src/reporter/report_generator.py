@@ -1,7 +1,7 @@
 """
 Jinja2 报告生成器 — 完整龟龟策略 HTML 分析报告。
 
-包含: HardGate / L2分解 / 公司分类 / OE详情 / PR逐年 / L5外推+陷阱 / 打分总结 / 交叉验证(v0.25)
+包含: HardGate / L2分解 / 公司分类 / OE详情 / PR逐年 / L5外推+陷阱 / 打分总结 / 交叉验证(v0.27)
 """
 
 from __future__ import annotations
@@ -227,9 +227,9 @@ class ReportGenerator:
             }
         has_fi = bool(fi_ctx)
 
-        # 商业知识上下文
+        # 商业知识上下文 (v0.27: business_knowledge 已移至 brief.md Section 5)
         bk_ctx = {}
-        if cv.business_knowledge is not None:
+        if hasattr(cv, 'business_knowledge') and cv.business_knowledge is not None:
             bk = cv.business_knowledge
             bk_ctx = {
                 "business_model": bk.business_model,
@@ -269,15 +269,15 @@ class ReportGenerator:
             "l5_color": l5_color,
             "l5_bar_pct": int(f.l5_score / 25 * 100) if f.l5_score else 0,
             "l5_safety_margin_pct": f.l5_safety_margin_pct,
-            # 交叉验证
+            # 交叉验证 (v0.27: 字段名更新)
             "cv_overall_verdict": cv.overall_verdict,
             "cv_total_checked": cv.total_checked,
-            "cv_consistent_count": cv.consistent_count,
+            "cv_consistent_count": cv.supported_count,
             "cv_conflict_count": cv.conflict_count,
-            "cv_supplement_count": cv.supplement_count,
-            "cv_suggested_l3_adjustment": cv.suggested_l3_adjustment,
-            "cv_suggested_l4_adjustment": cv.suggested_l4_adjustment,
-            "cv_suggested_l5_adjustment": cv.suggested_l5_adjustment,
+            "cv_supplement_count": cv.overstatement_count + cv.evidence_lack_count,
+            "cv_suggested_l3_adjustment": 0.0,
+            "cv_suggested_l4_adjustment": 0.0,
+            "cv_suggested_l5_adjustment": 0.0,
             "cv_discrepancies": discrepancies,
             "cv_key_findings": cv.key_findings,
             "cv_red_flags": cv.red_flags,
@@ -345,7 +345,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
   <h1>{{ name }} <span style="color:var(--text-dim);font-size:0.7em;">{{ ts_code }}</span></h1>
   <div class="score">{{ final_score }}</div>
   <span class="pool-tag {{ pool_class }}">{{ pool }}</span>
-  <div style="margin-top:8px;color:var(--text-dim);font-size:0.85rem;">龟龟投资策略 v0.25 · {{ generated_at }}</div>
+  <div style="margin-top:8px;color:var(--text-dim);font-size:0.85rem;">龟龟投资策略 v0.27 · {{ generated_at }}</div>
 </div>
 
 <!-- ====== 1. HardGate 否决检查 ====== -->
@@ -525,7 +525,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
 </div>
 
 <!-- ====== 7. 管线 ====== -->
-<h2>7. 处理管线 — v0.25</h2>
+<h2>7. 处理管线 — v0.27</h2>
 <div class="pipeline">
   <div class="step step-done">HardGate</div>
   <div class="step step-done">L2门控</div>
@@ -569,7 +569,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
 {% endif %}
 
 <div class="footer">
-  龟龟投资策略框架 v0.25 · 本报告仅供研究参考，不构成投资建议。<br>
+  龟龟投资策略框架 v0.27 · 本报告仅供研究参考，不构成投资建议。<br>
   生成时间: {{ generated_at }}
 </div>
 </body></html>"""

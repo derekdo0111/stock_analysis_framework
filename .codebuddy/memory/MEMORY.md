@@ -79,8 +79,10 @@
 - 三大报表字段 Tushare 返回"元"；daily_basic.total_mv 返回"万元"；fina_indicator 比率类返回"%"
 
 ### stock-analysis-framework (D:\project\stock-analysis-framework\)
-- 龟龟投资策略 v0.26，Python 3.11+ / Pydantic v2 / Pandas / Tushare / Jinja2 / loguru / tenacity
-- 阶段一~六完成，77 源文件 (~12700行)
+- 龟龟投资策略 v0.27，Python 3.11+ / Pydantic v2 / Pandas / Tushare / Jinja2 / loguru / tenacity
+- 阶段一~六完成，79 源文件
+- v0.27 新增: 三阶段LLM统一管线 — 商业检索Agent(web_search tool calling) → 分析Agent(full brief.md) → 交叉验证(验证分析结论)
+- v0.27 重构: CLI统一入口(移除--llm/--cross-validate/--brief分叉), 三模型独立配置(LLM_RETRIEVAL/ANALYSIS/VALIDATION_MODEL)
 - v0.26 修复: 取数粒度(年报过滤) + 列名(st_borr/trad_asset) + NaN防御(_safe_val) + 单位换算(万元→亿元) + 送转股排除
 - v0.26 结果: 矛盾率 57%→40%，茅台营收CAGR -24.9%→6.9%，DC NaN→1075亿，PR NaN%→4.33%
 - v0.25 新增: 7模块财报深度分析(纯Python) + LLM商业知识检索(合并交叉验证) + 三维对比(管线vs财报洞察vs LLM知识) + 删除DuckDuckGo
@@ -91,14 +93,16 @@
 - L2 降级为纯门控, 不参与最终评分
 - 分池阈值: 核心≥75, 观察50-74, 备选<50
 - GitHub: https://github.com/derekdo0111/stock_analysis_framework (main 分支)
-- 新管线: Phase1(Tushare) → Phase2(打分) → Phase3(财报深度分析) → Phase4(LLM商业知识检索+交叉验证) → Phase5(brief.md) → Phase6(HTML报告)
+- 新管线(v0.27): Phase1(Tushare) → Phase2(打分) → Phase3(财报深度分析) → Phase3.5(商业检索LLM) → Phase4(完整brief.md) → Phase5a(分析LLM Agent) → Phase5b(交叉验证LLM Agent) → Phase6(HTML报告)
 - 财报深度分析: 7模块纯Python确定性计算, 从Tushare三大报表提取结构化洞察, v0.26修复年报过滤防止季/年报混算
-- LLM 商业知识检索: LLM基于训练数据回答5类商业问题, 合并交叉验证为一次调用
-- 降级链: API LLM → Python规则引擎（财报洞察 vs 管线得分简单对比）
-- 核心理念：确定性计算(Python)与智能判断(LLM)彻底分离
+- LLM 商业知识检索(v0.27): 独立LLM Agent + web_search tool calling获取5类实时商业信息, 标注置信度+来源URL
+- LLM 分析Agent(v0.27): 基于完整brief.md(5 Section)撰写个性化投资分析报告, 三段式证据链
+- LLM 交叉验证(v0.27): 事实核查模式, 验证分析报告结论 vs brief.md源数据 (✓支撑/⚠过度解读/✗矛盾/?缺证据)
+- 降级链: Phase3.5(无API→跳过) → Phase5a(LLM→Python默认打分) → Phase5b(LLM→关键词规则引擎)
+- 核心理念：确定性计算(Python)与智能判断(LLM)彻底分离 — v0.27 进一步分离：商业检索(搜索) vs 分析(推理) vs 验证(核查)
 - 所有规则存储在 YAML 中，代码不做硬编码阈值
 - 数据双格式存储：JSON（可读调试）+ Parquet（高性能查询）
-- 数据源四层架构：Tushare(主) → akshare(备用) → 财报深度分析(Python) → LLM商业知识(LLM) → 年报PDF(降级)
+- 数据源四层架构：Tushare(主) → akshare(备用) → 财报深度分析(Python) → 商业检索LLM(web_search, v0.27) → 年报PDF(降级)
 
 ### Projects Location
 - 所有项目统一放在 D:\project\ 下，不放在 C:\Users\harry\CodeBuddy\

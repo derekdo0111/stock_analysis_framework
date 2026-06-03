@@ -1,9 +1,11 @@
 """
-brief.md 数据底稿组装器 — 拼合 Tushare原始数据 + L2-L5管线得分 + 财报深度分析洞察。
+brief.md 数据底稿组装器 — v0.27 重构。
 
-brief.md 是数据档案，作为 LLM 交叉验证的输入，不是最终输出品。
+拼合 Tushare原始数据 + L2-L5管线得分 + 财报深度分析洞察 + 商业知识检索。
 
-结构:
+brief.md 是数据档案，作为 LLM 分析 Agent 的输入，不是最终输出品。
+
+结构 (v0.27 五区块):
     # 龟龟策略数据底稿 — {name} ({ts_code})
 
     ## 一、Tushare 原始数据
@@ -15,12 +17,15 @@ brief.md 是数据档案，作为 LLM 交叉验证的输入，不是最终输出
     ## 三、财报深度分析洞察
     [7模块结构化输出]
 
-    ## 四、交叉验证提示
-    [三维对比提示: 管线得分 vs 财报洞察 vs LLM知识]
+    ## 四、分析报告撰写指引
+    [告诉分析Agent如何利用以上数据撰写报告]
+
+    ## 五、LLM 商业知识检索
+    [5类商业知识: 商业模式/管理层/行业地位/风险监管/分红回购]
 
 用法:
     from src.reporter.brief_md_builder import BriefMDBuilder
-    builder = BriefMDBuilder(bundle, final_score, financial_insights)
+    builder = BriefMDBuilder(bundle, final_score, financial_insights, business_knowledge)
     md_text = builder.build()
 """
 
@@ -42,6 +47,7 @@ class BriefMDBuilder:
         bundle: 原始 Tushare 数据载体
         final_score: 管线打分结果
         financial_insights: 财报深度分析结果 (FinancialInsights | None)
+        business_knowledge: 商业知识检索结果 (BusinessKnowledgeResult | None)
     """
 
     def __init__(
@@ -49,15 +55,17 @@ class BriefMDBuilder:
         bundle: StockDataBundle,
         final_score: FinalScore,
         financial_insights: Any = None,
+        business_knowledge: Any = None,
     ):
         self._b = bundle
         self._f = final_score
         self._fi = financial_insights
+        self._bk = business_knowledge
 
     # ── Public ──
 
     def build(self) -> str:
-        """组装完整 brief.md 字符串。"""
+        """组装完整 brief.md 字符串（五区块）。"""
         lines: list[str] = []
         lines.append(f"# 龟龟策略数据底稿 — {self._b.name} ({self._b.ts_code})")
         lines.append(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
@@ -85,22 +93,12 @@ class BriefMDBuilder:
         lines.extend(self._build_section3_financial_insights())
         lines.append("")
 
-        # 四、交叉验证提示
-        lines.append("## 四、交叉验证提示")
+        # 四、分析报告撰写指引 (v0.27 重写)
+        lines.extend(self._build_section4_analysis_guidance())
         lines.append("")
-        lines.append(
-            "请基于你的训练数据知识，结合以下两类信息进行三维交叉验证："
-            "\n"
-            "\n1. **管线计算得分** (第二部分) — 基于 Tushare 财务数据的量化打分"
-            "\n2. **财报深度分析洞察** (第三部分) — 从三大报表提取的趋势/质量/健康度"
-            "\n3. **你的商业知识** — LLM 训练数据中的商业判断（5类：商业模式/管理层/行业地位/风险监管/分红回购）"
-            "\n"
-            "\n逐维对比，标注不一致项并给出修正建议："
-            "\n- 管线得分是否与财报趋势一致？（如：ROE得分高但ROE实际在下降 → 矛盾）"
-            "\n- LLM 商业知识是否支持或质疑管线得分？（如：LLM 已知管理层负面，但得分给满分 → 矛盾）"
-            "\n- 财报洞察是否揭示管线未捕捉到的风险？（如：现金流质量恶化但未在得分中体现 → 信息补充）"
-        )
-        lines.append("")
+
+        # 五、LLM 商业知识检索 (v0.27 新增)
+        lines.extend(self._build_section5_business_knowledge())
 
         return "\n".join(lines)
 
@@ -356,6 +354,57 @@ class BriefMDBuilder:
         lines.append(md)
         return lines
 
+    # ── Section 4: 分析报告撰写指引 (v0.27 重写) ──
+
+    def _build_section4_analysis_guidance(self) -> list[str]:
+        """分析报告撰写指引 — 告诉分析 Agent 如何利用以上数据。"""
+        lines = [
+            "## 四、分析报告撰写指引",
+            "",
+            "以上三部分为你提供了完整的分析素材：",
+            "",
+            "1. **Tushare 原始数据** (第一部分) — 三大报表关键行、财务指标趋势、估值快照、分红历史",
+            "2. **管线计算得分** (第二部分) — L2门控、L3十二维商业模式评估、L4穿透回报率、L5安全边际",
+            "3. **财报深度分析洞察** (第三部分) — 7模块 Python 确定性计算的结构化洞察（收入利润趋势、利润率拆解、ROE杜邦、现金流质量、资产负债健康度、分红政策、营运效率）",
+            "",
+            "请基于以上数据，结合第五部分的商业知识，撰写个性化投资分析报告：",
+            "",
+            "- 使用三段式证据链：【数据】→【比较】→【结论】",
+            "- 每个结论必须有数据支撑，标注置信度",
+            "- 优先采信 Tushare 原始数据和财报深度分析定量结果",
+            "- 第五部分的商业知识作为行业背景和上下文参考",
+            "- 如数据之间存在矛盾，明确标注并给出你的判断",
+            "- 禁止给出买入/卖出/持有的投资建议",
+            "",
+        ]
+        return lines
+
+    # ── Section 5: LLM 商业知识检索 (v0.27 新增) ──
+
+    def _build_section5_business_knowledge(self) -> list[str]:
+        """LLM 商业知识检索结果。"""
+        lines: list[str] = []
+
+        if self._bk is None:
+            lines.append("## 五、LLM 商业知识检索")
+            lines.append("")
+            lines.append("*(商业知识检索未执行)*")
+            lines.append("")
+            return lines
+
+        # 使用 BusinessKnowledgeResult 的 to_markdown() 方法
+        try:
+            md = self._bk.to_markdown()
+            lines.append(md)
+        except AttributeError:
+            # 兼容旧格式（dict 或 None）
+            lines.append("## 五、LLM 商业知识检索")
+            lines.append("")
+            lines.append("*(商业知识格式不兼容)*")
+            lines.append("")
+
+        return lines
+
     # ── Helpers ──
 
     @staticmethod
@@ -398,6 +447,7 @@ def build_brief_md(
     bundle: StockDataBundle,
     final_score: FinalScore,
     financial_insights: Any = None,
+    business_knowledge: Any = None,
 ) -> str:
     """快捷组装 brief.md。
 
@@ -405,9 +455,10 @@ def build_brief_md(
         bundle: Tushare 数据载体
         final_score: 打分结果
         financial_insights: 财报深度分析结果 (FinancialInsights | None)
+        business_knowledge: 商业知识检索结果 (BusinessKnowledgeResult | None)
 
     Returns:
         brief.md 的 Markdown 文本
     """
-    builder = BriefMDBuilder(bundle, final_score, financial_insights)
+    builder = BriefMDBuilder(bundle, final_score, financial_insights, business_knowledge)
     return builder.build()
