@@ -79,8 +79,10 @@
 - 三大报表字段 Tushare 返回"元"；daily_basic.total_mv 返回"万元"；fina_indicator 比率类返回"%"
 
 ### stock-analysis-framework (D:\project\stock-analysis-framework\)
-- 龟龟投资策略 v0.25，Python 3.11+ / Pydantic v2 / Pandas / Tushare / Jinja2 / loguru / tenacity
-- 阶段一~六，80+ 源文件
+- 龟龟投资策略 v0.26，Python 3.11+ / Pydantic v2 / Pandas / Tushare / Jinja2 / loguru / tenacity
+- 阶段一~六完成，77 源文件 (~12700行)
+- v0.26 修复: 取数粒度(年报过滤) + 列名(st_borr/trad_asset) + NaN防御(_safe_val) + 单位换算(万元→亿元) + 送转股排除
+- v0.26 结果: 矛盾率 57%→40%，茅台营收CAGR -24.9%→6.9%，DC NaN→1075亿，PR NaN%→4.33%
 - v0.25 新增: 7模块财报深度分析(纯Python) + LLM商业知识检索(合并交叉验证) + 三维对比(管线vs财报洞察vs LLM知识) + 删除DuckDuckGo
 - v0.23 核心公式: **Final = L3(30pt) + L4(45pt) + L5(25pt) = 100pt** (加法百分制)
 - L3: 十二维商业模式评估 (盈利能力5+成熟度3+资本纪律2+治理2), 每维0-2分, 满分24→30
@@ -90,7 +92,7 @@
 - 分池阈值: 核心≥75, 观察50-74, 备选<50
 - GitHub: https://github.com/derekdo0111/stock_analysis_framework (main 分支)
 - 新管线: Phase1(Tushare) → Phase2(打分) → Phase3(财报深度分析) → Phase4(LLM商业知识检索+交叉验证) → Phase5(brief.md) → Phase6(HTML报告)
-- 财报深度分析: 7模块纯Python确定性计算, 从Tushare三大报表提取结构化洞察
+- 财报深度分析: 7模块纯Python确定性计算, 从Tushare三大报表提取结构化洞察, v0.26修复年报过滤防止季/年报混算
 - LLM 商业知识检索: LLM基于训练数据回答5类商业问题, 合并交叉验证为一次调用
 - 降级链: API LLM → Python规则引擎（财报洞察 vs 管线得分简单对比）
 - 核心理念：确定性计算(Python)与智能判断(LLM)彻底分离
