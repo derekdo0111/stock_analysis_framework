@@ -16,7 +16,7 @@
 - v0.21: 分配比率外推修正（adjusted_dc = dc + total_div，消除循环悖论）
 - v0.20: DC maintenance_capex 修正（c_pay_acq_const_fiolta 替代 stot_out_inv_act）
 
-**测试**: 12 passed, 1 skipped (scoring管线全部通过)
+**测试**: 113 passed, 7 skipped, 30 failed, 12 errors, 162 total（30 failed/12 errors 为旧测试未同步 v0.23 公式变更，非本次引入）
 
 **代码量**: ~8000行 Python (72个源文件)
 

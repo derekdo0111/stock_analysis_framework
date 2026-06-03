@@ -2,13 +2,50 @@
 
 ## Project Conventions
 
+### ⛔ 开发工作流：文档先行，代码后行（2026-06-03 确立）
+
+任何改动必须在写代码之前先更新对应的项目管理文件。改动分三级：
+- **Hotfix** (修bug)：跳过 plan.md 全部 + P2 除 CHANGELOG
+- **Minor** (小优化)：跳过 plan.md + README.md
+- **Major** (新功能/重构)：全流程 6 阶段
+
+**6 阶段流程**：
+1. **阶段〇（准备）**：阅读 TRACEABILITY.md + plan.md + PROJECT_STATUS.md，跑 verify_traceability.py 确认基线
+2. **阶段一（设计）**：docs/plan.md → TRACEABILITY.md → pyproject.toml → verify_traceability.py ITEMS
+3. **阶段二（元数据）**：PROJECT_STATUS.md → CHANGELOG.md → README.md → ISSUES.md
+4. **阶段三（记忆）**：MEMORY.md + YYYY-MM-DD.md
+5. **阶段四（实现）**：写代码 + 写测试
+6. **阶段五（验证硬门控）**：ruff → mypy → pytest → verify_traceability.py（任一失败不得提交）
+7. **阶段六（收尾）**：回溯 TRACEABILITY.md 状态（⚠️→✅）→ git add/commit/push
+
+### ⛔ 版本号清单
+
+每次版本升级必须更新以下 7 处：
+1. `pyproject.toml` → version + description
+2. `PROJECT_STATUS.md` → 当前版本
+3. `CHANGELOG.md` → 新增版本条目
+4. `README.md` → 标题版本号 + 阶段描述
+5. `TRACEABILITY.md` → 最后更新日期 + 统计行版本号
+6. `src/reporter/report_generator.py` → 模板页脚 + 管线标题
+7. `src/cli.py` → print(f"[Turtle] v{version}")
+
+### ⛔ TRACEABILITY.md 三列约定
+
+| 列 | 含义 | ❌ | ⚠️ | ✅ | — |
+|----|------|:--:|:--:|:--:|:--:|
+| 实现 | 代码是否按设计完整实现 | 文件不存在 | 占位/空壳 | 完整实现 | |
+| 连通 | 是否被生产代码 import | 零生产引用 | 仅测试引用 | 接入管线 | 实现❌时不适用 |
+| 测试 | 是否有测试文件 | 无测试 | | 有test文件且>0函数 | 非代码项不适用 |
+
+`verify_traceability.py` 自动检测连通和测试列（import 分析 + test 文件扫描），实现列需人工判定。
+
 ### ⛔ 铁律：每次写新代码前必须先跑 traceability
 
 - **强制执行**：在写任何新代码之前，必须先运行 `python scripts/verify_traceability.py --only-failures`
 - **补齐优先**：如果存在 ❌ 缺失项或 ⚠️ 未连通项，必须先补坑再开新坑
 - **更新 TRACEABILITY.md**：如果新增了设计项，同步更新 `TRACEABILITY.md` 和 `scripts/verify_traceability.py` 中的 ITEMS 列表
 - **退出码**：0=全部通过/1=有MISS/2=有WARN/3=两者都有
-- 此规则于 2026-06-01 建立，因发现 data_pool 4个模块代码完整但零生产引用、screener/stock_pool.py 等 23 项缺失、11 项未连通，设计和实现之间存在严重断层
+- 此规则于 2026-06-01 建立，2026-06-03 升级为完整6阶段工作流
 
 ### ⛔ 铁律：禁止编造任何数据
 - **绝对禁止**凭记忆/印象/猜测编造数值。任何数字必须来自以下三种来源之一：

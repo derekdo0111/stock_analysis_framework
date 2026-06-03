@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "stock-analysis-framework"
-version = "0.21.0"
-description = "龟龟投资策略框架 v0.21 — A股选股到报告生成全管线"
+version = "0.23.0"
+description = "龟龟投资策略框架 v0.23 — A股选股到报告生成全管线"
 authors = ["harry <harry@example.com>"]
 readme = "README.md"
 packages = [{ include = "src" }]

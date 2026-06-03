@@ -89,13 +89,15 @@ ITEMS: List[TraceItem] = [
     TraceItem("P02", "data_pool", "storage/local_storage.py", "src/data_pool/storage/local_storage.py", "py_module", True),
     TraceItem("P03", "data_pool", "validator/data_validator.py", "src/data_pool/validator/data_validator.py", "py_module", True),
     TraceItem("P04", "data_pool", "transformer/tushare_transformer.py", "src/data_pool/transformer/tushare_transformer.py", "py_module", True),
+    TraceItem("P05", "data_pool", "bundle.py (StockDataBundle)", "src/data_pool/bundle.py", "py_module", True),
+    TraceItem("P06", "data_pool", "disposable_cash.py", "src/data_pool/schema/disposable_cash.py", "py_module", True),
 
     # ── src/data_fetcher/ ──
     TraceItem("F01", "data_fetcher", "tushare_client.py", "src/data_fetcher/tushare_client.py", "py_module", True),
     TraceItem("F02", "data_fetcher", "base.py (多Adapter基类)", "src/data_fetcher/base.py", "py_module", True),
     TraceItem("F03", "data_fetcher", "web.py (Web数据源)", "src/data_fetcher/web.py", "py_module", True),
-    TraceItem("F04", "data_fetcher", "orchestrator.py (编排器)", "src/data_fetcher/orchestrator.py", "py_module", False,
-              "核心缺失——批次拉取+转换+存储"),
+    TraceItem("F04", "data_fetcher", "orchestrator.py (编排器)", "src/data_fetcher/orchestrator.py", "py_module", True),
+    TraceItem("F05", "data_fetcher", "web_extractor.py", "src/data_fetcher/web_extractor.py", "py_module", True),
 
     # ── src/screener/ ──
     TraceItem("S01", "screener", "hard_gate.py", "src/screener/hard_gate.py", "py_module", True),
@@ -112,7 +114,8 @@ ITEMS: List[TraceItem] = [
     TraceItem("C06", "calculator", "turtle_strategy/l5_calculator.py", "src/calculator/turtle_strategy/l5_calculator.py", "py_module", True),
     TraceItem("C07", "calculator", "turtle_strategy/constants_turtle.py", "src/calculator/turtle_strategy/constants_turtle.py", "py_module", True),
     TraceItem("C08", "calculator", "financial_ratios.py (杜邦/CAGR/分位)", "src/calculator/financial_ratios.py", "py_module", True),
-    TraceItem("C09", "calculator", "scoring.py (乘法打分)", "src/calculator/turtle_strategy/scoring.py", "py_module", True),
+    TraceItem("C09", "calculator", "scoring.py (加法百分制)", "src/calculator/turtle_strategy/scoring.py", "py_module", True),
+    TraceItem("C10", "calculator", "l3_calculator.py (十二维商业模式)", "src/calculator/turtle_strategy/l3_calculator.py", "py_module", True),
 
     # ── src/reporter/ ──
     TraceItem("R01", "reporter", "report_generator.py", "src/reporter/report_generator.py", "py_module", True),
@@ -200,6 +203,7 @@ class CheckResult:
     item: TraceItem
     status: str  # "pass" | "missing" | "orphaned" | "ok_no_check"
     detail: str = ""
+    test_status: str = "—"  # "✅" | "❌" | "—"
 
 
 def _module_to_import_patterns(module_path: str) -> List[Tuple[str, re.Pattern]]:
@@ -305,6 +309,58 @@ def _is_dir_non_empty(dir_path: Path) -> bool:
         return False
 
 
+def _find_test_status(item: TraceItem) -> str:
+    """Check if a test file exists for this module.
+
+    Returns: '✅' if test file with test functions exists, '❌' if no test file, '—' if N/A.
+    """
+    if item.kind not in ("py_module",):
+        return "—"
+
+    path = Path(item.path)
+    module_name = path.stem
+    if module_name == "__init__":
+        module_name = path.parent.name
+
+    # Build dotted import path
+    dotted = str(path.with_suffix("")).replace("\\", ".").replace("/", ".")
+
+    tests_dir = PROJECT_ROOT / "tests"
+    if not tests_dir.is_dir():
+        return "T:MISS"
+
+    # Strategy 1: Direct filename match
+    direct_patterns = [
+        tests_dir / "unit" / f"test_{module_name}.py",
+        tests_dir / "integration" / f"test_{module_name}.py",
+        tests_dir / "functional" / f"test_{module_name}.py",
+    ]
+
+    for test_path in direct_patterns:
+        if test_path.exists():
+            try:
+                content = test_path.read_text(encoding="utf-8", errors="ignore")
+                if re.search(r"def test_\w+", content):
+                    return "T:PASS"
+            except Exception:
+                pass
+
+    # Strategy 2: Scan all test files for imports of this module
+    import_patterns = _module_to_import_patterns(str(item.path))
+
+    if import_patterns:
+        for test_file in tests_dir.rglob("test_*.py"):
+            try:
+                content = test_file.read_text(encoding="utf-8", errors="ignore")
+                for _name, pat in import_patterns:
+                    if pat.search(content):
+                        return "T:PASS"
+            except Exception:
+                pass
+
+    return "T:MISS"
+
+
 def check_all(items: List[TraceItem], src_dir: Path) -> List[CheckResult]:
     """Run all checks."""
     results: List[CheckResult] = []
@@ -361,6 +417,10 @@ def check_all(items: List[TraceItem], src_dir: Path) -> List[CheckResult]:
                 results.append(CheckResult(item, "pass", item.note))
             else:
                 results.append(CheckResult(item, "pass", ""))
+
+    # 3. Test coverage check
+    for r in results:
+        r.test_status = _find_test_status(r.item)
 
     return results
 
@@ -419,8 +479,13 @@ def print_report(
         if only_failures and r.status == "pass":
             continue
 
+        test_icon = f" test:{r.test_status}" if r.test_status != "—" else ""
         detail = f"  {r.detail}" if r.detail else ""
-        print(f"  {icon} [{r.item.id}] {r.item.name}{detail}")
+        print(f"  {icon} [{r.item.id}] {r.item.name}{test_icon}{detail}")
+
+    # Count tests
+    test_pass = sum(1 for r in results if r.test_status == "T:PASS")
+    test_fail = sum(1 for r in results if r.test_status == "T:MISS")
 
     # Summary
     print()
@@ -430,6 +495,8 @@ def print_report(
     print(f"  {Colors.yellow('[WARN] Orphaned')}: {orphan_count}")
     print(f"  {Colors.red('[MISS] Missing')}: {missing_count}")
     print(f"  Connectivity: {pass_count}/{total} = {pass_count / total * 100:.1f}%" if total > 0 else "")
+    if test_pass + test_fail > 0:
+        print(f"  Test Coverage: {test_pass}/{test_pass + test_fail} = {test_pass / (test_pass + test_fail) * 100:.1f}%")
     print(Colors.bold("-" * 72))
     print()
 

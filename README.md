@@ -1,4 +1,4 @@
-# Stock Analysis Framework — 龟龟投资策略 v0.21
+# Stock Analysis Framework — 龟龟投资策略 v0.23
 
 融合龟龟投资策略完整方法论的 A 股量化分析框架，从选股到报告生成的全管线。
 
@@ -6,10 +6,18 @@
 
 ## 架构概览
 
+```mermaid
+flowchart TD
+    A["选股器(HardGate→L2门控→分类)"] --> B["数据池(Tushare 22接口→Schema→存储)"]
+    B --> C["计算引擎(L3十二维+L4穿透回报率+L5估值安全边际)→加法百分制"]
+    C --> D["LLM智能层(双Agent分析)"]
+    D --> E["报告渲染(HTML+MD)"]
 ```
-选股器(HardGate→L2初筛→分类→股票池)
+
+```
+选股器(HardGate→L2门控→分类)
    → 数据池(Tushare 22接口→Schema→存储)
-      → 计算引擎(龟龟6子模块→乘法打分)
+      → 计算引擎(L3十二维+L4穿透回报率+L5估值安全边际→加法百分制)
          → LLM智能层(双Agent分析)
             → 报告渲染(HTML+MD)
 
@@ -20,7 +28,7 @@
 ## 五阶段实施
 
 1. **阶段一（地基）✅**：Pydantic v2 Schema + YAML加载器 + Tushare适配器(22接口) + 19数据模型 + JSON/Parquet存储
-2. **阶段二（确定性管线）✅**：HardGate(6项否决) + L2初筛(20分) + 公司5分类 + OE路径B + 穿透回报率(v0.21前瞻公式) + L5安全边际 + 乘法打分
+2. **阶段二（确定性管线）✅**：HardGate(6项否决) + L2纯门控初筛 + 公司5分类 + L3十二维商业模式(0-30pt) + OE路径B + 穿透回报率(0-45pt) + L5纯估值安全边际(0-25pt) + 加法百分制 Final=L3+L4+L5=100pt
 3. **阶段三（LLM智能层）✅**：DeepSeek/OpenAI/Anthropic客户端 + CFA分析Agent(9模块Rubric+三段式证据链) + CPA+CFE审计Agent(10项审计程序) + Jinja2报告 + CLI
 4. **阶段四（质量加固）✅**：162测试 + ruff/mypy零错误 + 全链路茅台验证
 5. **阶段五（回测验证）🟡**：Walk-Forward 滚动窗口 → 分红验证 → PR兑现率 + 超额收益 —— 代码完成，待真数据回测
