@@ -296,7 +296,7 @@ class L3Calculator:
         return 0, "数据不足"
 
     def _eval_share_count_trend(self, dim) -> tuple[float, str]:
-        """股本变动: 近5年总股本变化率。"""
+        """股本变动: 近5年总股本变化率（v0.26 排除送转股）。"""
         try:
             db = self._bundle.daily_basic.sort_values("trade_date", ascending=False)
             # 找最早和最新的年末数据
@@ -304,20 +304,55 @@ class L3Calculator:
                                if isinstance(d, str)))
             if len(years) < 2:
                 return 0, "数据不足"
-            # 最近5年数据
+
+            # 只用最近5年
+            recent_years = years[-5:]
             latest_year_data = db[
-                db["trade_date"].astype(str).str.startswith(years[-1])
+                db["trade_date"].astype(str).str.startswith(recent_years[-1])
             ].head(1)
             earliest_year_data = db[
-                db["trade_date"].astype(str).str.startswith(years[0])
+                db["trade_date"].astype(str).str.startswith(recent_years[0])
             ].tail(1)
 
-            if not latest_year_data.empty and not earliest_year_data.empty:
-                latest_share = float(latest_year_data.iloc[0].get("total_share") or 0)
-                earliest_share = float(earliest_year_data.iloc[0].get("total_share") or 0)
-                if earliest_share > 0:
-                    change_pct = (latest_share / earliest_share - 1) * 100
-                    return self._apply_thresholds(change_pct, dim)
+            if latest_year_data.empty or earliest_year_data.empty:
+                return 0, "数据不足"
+
+            latest_share = float(latest_year_data.iloc[0].get("total_share") or 0)
+            earliest_share = float(earliest_year_data.iloc[0].get("total_share") or 0)
+            if earliest_share <= 0:
+                return 0, "数据不足"
+
+            raw_change_pct = (latest_share / earliest_share - 1) * 100
+
+            # v0.26: 排除送转股影响 — 送股(stk_div)和转增(stk_bo_rate)
+            # 这些是利润分配而非融资摊薄，不应扣分
+            div_df = self._bundle.dividend
+            stk_div_factor = 1.0
+            if not div_df.empty and "end_date" in div_df.columns:
+                div_copy = div_df.copy()
+                div_copy["fiscal_year"] = div_copy["end_date"].astype(str).str[:4]
+                # 只取近5年内的已实施送转
+                for _, row in div_copy.iterrows():
+                    fy = str(row.get("fiscal_year", ""))
+                    if fy not in recent_years:
+                        continue
+                    stk_div = float(row.get("stk_div", 0) or 0)
+                    stk_bo = float(row.get("stk_bo_rate", 0) or 0)
+                    if stk_div + stk_bo > 0:
+                        stk_div_factor *= (1 + stk_div + stk_bo)
+
+            # 有机股本变化 = 总变化 / 送转股因子
+            if stk_div_factor > 1.0:
+                organic_change_pct = ((latest_share / stk_div_factor) / earliest_share - 1) * 100
+            else:
+                organic_change_pct = raw_change_pct
+
+            # 如果有送转股且有机变化不大，标注
+            if stk_div_factor > 1.01 and abs(organic_change_pct) < 5:
+                score, label = self._apply_thresholds(organic_change_pct, dim)
+                return score, f"{label} (送转股已排除, 有机变化={organic_change_pct:.1f}%)"
+
+            return self._apply_thresholds(organic_change_pct, dim)
         except Exception:
             pass
         return 0, "数据不足"

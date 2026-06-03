@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>龟龟策略交叉验证报告 — {{ name }} ({{ ts_code }})</title>
+<style>
+  :root {
+    --bg:#0d1117; --card:#161b22; --border:#30363d; --text:#c9d1d9;
+    --accent:#58a6ff; --green:#3fb950; --yellow:#d2991d; --red:#f85149;
+    --text-dim:#8b949e; --orange:#db6d28;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    padding:32px; max-width:1100px; margin:0 auto; line-height:1.7;
+  }
+  h2 {
+    font-size:1.2rem; margin:36px 0 14px;
+    border-bottom:1px solid var(--border); padding-bottom:8px;
+  }
+  h3 { font-size:1rem; margin:16px 0 8px; color:var(--accent); }
+
+  .header { text-align:center; margin-bottom:40px; }
+  .header .score { font-size:3.5rem; font-weight:700; color:{{ score_color }}; }
+  .header .meta { color:var(--text-dim); font-size:0.85rem; }
+  .pool-tag {
+    display:inline-block; padding:6px 20px; border-radius:20px;
+    font-size:0.95rem; font-weight:600; margin-left:12px; vertical-align:middle;
+  }
+  .pool-core { background:#1a3a2a; color:var(--green); }
+  .pool-watch { background:#3a2a0a; color:var(--yellow); }
+  .pool-fallback { background:#1a1a2e; color:var(--text-dim); }
+
+  .card {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:10px; padding:20px; margin-bottom:16px;
+  }
+  .card h3 { margin-top:0; }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px; }
+
+  table { width:100%; border-collapse:collapse; font-size:0.85rem; margin-top:8px; }
+  th,td { padding:8px 12px; text-align:left; border-bottom:1px solid var(--border); }
+  th { color:var(--text-dim); font-weight:500; font-size:0.8rem; }
+  td { font-variant-numeric:tabular-nums; }
+
+  .bar-wrap { height:6px; background:var(--border); border-radius:3px; margin:4px 0 8px; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:3px; }
+  .bar-fill.green { background:var(--green); }
+  .bar-fill.yellow { background:var(--yellow); }
+  .bar-fill.red { background:var(--red); }
+
+  /* ── 交叉验证专用样式 ── */
+  .cv-verdict {
+    padding:16px 20px; border-radius:10px; margin:16px 0;
+    font-weight:600; font-size:1.1rem;
+  }
+  .cv-consistent { background:#1a3a2a; border-left:4px solid var(--green); }
+  .cv-mixed { background:#3a2a0a; border-left:4px solid var(--yellow); }
+  .cv-warning { background:#3a0a0a; border-left:4px solid var(--red); }
+
+  .discrepancy-card {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:8px; padding:16px; margin:12px 0;
+    border-left-width:4px;
+  }
+  .discrepancy-card.conflict { border-left-color:var(--red); }
+  .discrepancy-card.supplement { border-left-color:var(--accent); }
+  .discrepancy-card.consistent { border-left-color:var(--green); }
+
+  .disc-header {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:8px;
+  }
+  .disc-dim { font-weight:600; color:var(--accent); }
+  .disc-judgment {
+    padding:2px 10px; border-radius:4px; font-size:0.78rem;
+    font-weight:600;
+  }
+  .disc-judgment.conflict { background:#3a0a0a; color:var(--red); }
+  .disc-judgment.supplement { background:#1a1a3a; color:var(--accent); }
+  .disc-judgment.consistent { background:#1a3a2a; color:var(--green); }
+
+  .disc-body { font-size:0.85rem; line-height:1.6; }
+  .disc-label { color:var(--text-dim); font-size:0.78rem; }
+
+  .adjusted-score {
+    display:inline-flex; align-items:center; gap:8px;
+    padding:8px 16px; border-radius:8px; margin:8px 8px 8px 0;
+    font-weight:600;
+  }
+  .adjusted-score.positive { background:#1a3a2a; color:var(--green); }
+  .adjusted-score.negative { background:#3a0a0a; color:var(--red); }
+
+  .flag { padding:10px 14px; border-radius:6px; margin:4px 0; font-size:0.85rem; }
+  .flag-warn { background:#3a0a0a; border-left:3px solid var(--red); }
+  .flag-info { background:#1a1a3a; border-left:3px solid var(--accent); }
+
+  .footer { text-align:center; color:var(--text-dim); font-size:0.82rem; margin-top:56px; padding-top:24px; border-top:1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- HEADER -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="header">
+  <h1>{{ name }} <span style="color:var(--text-dim);font-size:0.7em;">{{ ts_code }}</span></h1>
+  <div class="score">{{ final_score }}</div>
+  <span class="pool-tag {{ pool_class }}">{{ pool }}</span>
+  <div class="meta">龟龟投资策略 v0.25 · 交叉验证报告 · {{ generated_at }}</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- 得分概览 -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2>1. 管线得分概览</h2>
+<div class="grid">
+  <div class="card">
+    <h3>L3 商业模式</h3>
+    <div style="font-size:1.6rem;font-weight:700;color:var(--green);">{{ "%.1f"|format(l3_score) }} / 30</div>
+    <div style="color:var(--text-dim);font-size:0.85rem;margin-top:4px;">{{ l3_level }} · 维度分 {{ "%.0f"|format(l3_total_dim) }}/24</div>
+    <div class="bar-wrap" style="margin-top:8px;">
+      <div class="bar-fill green" style="width:{{ l3_bar_pct }}%"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>L4 穿透回报率</h3>
+    <div style="font-size:1.6rem;font-weight:700;color:{{ l4_color }};">{{ "%.1f"|format(l4_score) }} / 45</div>
+    <div style="color:var(--text-dim);font-size:0.85rem;margin-top:4px;">PR={{ "%.2f"|format(pr_pct) }}% · OE={{ oe_quality }}</div>
+    <div class="bar-wrap" style="margin-top:8px;">
+      <div class="bar-fill {{ l4_color }}" style="width:{{ l4_bar_pct }}%"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>L5 安全边际</h3>
+    <div style="font-size:1.6rem;font-weight:700;color:{{ l5_color }};">{{ "%.1f"|format(l5_score) }} / 25</div>
+    <div style="color:var(--text-dim);font-size:0.85rem;margin-top:4px;">安全边际率={{ "%.1f"|format(l5_safety_margin_pct) }}%</div>
+    <div class="bar-wrap" style="margin-top:8px;">
+      <div class="bar-fill {{ l5_color }}" style="width:{{ l5_bar_pct }}%"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- 交叉验证结果 -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2>2. 交叉验证结论</h2>
+
+{% if cv_error %}
+<div class="card" style="border-left:4px solid var(--red);">
+  <h3 style="color:var(--red);">交叉验证失败</h3>
+  <div style="color:var(--text-dim);">{{ cv_error }}</div>
+</div>
+{% else %}
+
+<!-- 总体结论 -->
+{% set cv_class = "cv-mixed" %}
+{% if cv_conflict_count > 0 %}{% set cv_class = "cv-warning" %}{% endif %}
+{% if cv_conflict_count == 0 and cv_supplement_count > 0 %}{% set cv_class = "cv-mixed" %}{% endif %}
+{% if cv_conflict_count == 0 and cv_supplement_count == 0 %}{% set cv_class = "cv-consistent" %}{% endif %}
+
+<div class="cv-verdict {{ cv_class }}">
+  {{ cv_overall_verdict }}
+  {% if cv_used_fallback %}
+  <span style="font-size:0.8rem;color:var(--text-dim);">(降级规则引擎)</span>
+  {% endif %}
+</div>
+
+<!-- 统计 -->
+<div class="grid">
+  <div class="card" style="text-align:center;">
+    <div style="font-size:2rem;font-weight:700;color:var(--accent);">{{ cv_total_checked }}</div>
+    <div style="color:var(--text-dim);font-size:0.85rem;">检查维度</div>
+  </div>
+  <div class="card" style="text-align:center;">
+    <div style="font-size:2rem;font-weight:700;color:var(--green);">{{ cv_consistent_count }}</div>
+    <div style="color:var(--text-dim);font-size:0.85rem;">一致</div>
+  </div>
+  <div class="card" style="text-align:center;">
+    <div style="font-size:2rem;font-weight:700;color:var(--red);">{{ cv_conflict_count }}</div>
+    <div style="color:var(--text-dim);font-size:0.85rem;">矛盾</div>
+  </div>
+  <div class="card" style="text-align:center;">
+    <div style="font-size:2rem;font-weight:700;color:var(--accent);">{{ cv_supplement_count }}</div>
+    <div style="color:var(--text-dim);font-size:0.85rem;">信息补充</div>
+  </div>
+</div>
+
+<!-- 修正建议 -->
+{% if cv_suggested_l3_adjustment != 0 or cv_suggested_l4_adjustment != 0 or cv_suggested_l5_adjustment != 0 %}
+<h3>建议得分修正</h3>
+<div style="display:flex;flex-wrap:wrap;margin:8px 0 16px;">
+  {% if cv_suggested_l3_adjustment != 0 %}
+  <div class="adjusted-score {% if cv_suggested_l3_adjustment > 0 %}positive{% else %}negative{% endif %}">
+    L3: {% if cv_suggested_l3_adjustment > 0 %}+{% endif %}{{ "%.1f"|format(cv_suggested_l3_adjustment) }}
+    <span style="font-weight:400;color:var(--text-dim);">→ {{ "%.1f"|format(l3_score + cv_suggested_l3_adjustment) }}/30</span>
+  </div>
+  {% endif %}
+  {% if cv_suggested_l4_adjustment != 0 %}
+  <div class="adjusted-score {% if cv_suggested_l4_adjustment > 0 %}positive{% else %}negative{% endif %}">
+    L4: {% if cv_suggested_l4_adjustment > 0 %}+{% endif %}{{ "%.1f"|format(cv_suggested_l4_adjustment) }}
+    <span style="font-weight:400;color:var(--text-dim);">→ {{ "%.1f"|format(l4_score + cv_suggested_l4_adjustment) }}/45</span>
+  </div>
+  {% endif %}
+  {% if cv_suggested_l5_adjustment != 0 %}
+  <div class="adjusted-score {% if cv_suggested_l5_adjustment > 0 %}positive{% else %}negative{% endif %}">
+    L5: {% if cv_suggested_l5_adjustment > 0 %}+{% endif %}{{ "%.1f"|format(cv_suggested_l5_adjustment) }}
+    <span style="font-weight:400;color:var(--text-dim);">→ {{ "%.1f"|format(l5_score + cv_suggested_l5_adjustment) }}/25</span>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- 逐条不一致记录 -->
+{% if cv_discrepancies %}
+<h3>逐维对比详情</h3>
+{% for d in cv_discrepancies %}
+<div class="discrepancy-card {{ d.judgment_class }}">
+  <div class="disc-header">
+    <span class="disc-dim">{{ d.dimension }}</span>
+    <span class="disc-judgment {{ d.judgment_class }}">{{ d.judgment }}</span>
+  </div>
+  <div class="disc-body">
+    <div style="margin-bottom:4px;">
+      <span class="disc-label">管线得分:</span> {{ d.quantitative_score }}
+    </div>
+    <div style="margin-bottom:4px;">
+      <span class="disc-label">Web 证据:</span> {{ d.web_evidence }}
+    </div>
+    {% if d.suggestion %}
+    <div style="margin-top:6px;padding:8px 12px;background:var(--bg);border-radius:6px;">
+      <span class="disc-label">修正建议:</span>
+      <span style="color:{% if d.judgment_class == 'conflict' %}var(--yellow){% else %}var(--accent){% endif %};">
+        {{ d.suggestion }}
+      </span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<!-- 关键发现 -->
+{% if cv_key_findings %}
+<h3>关键发现</h3>
+{% for f in cv_key_findings %}
+<div class="flag flag-info">{{ f }}</div>
+{% endfor %}
+{% endif %}
+
+<!-- 红旗 -->
+{% if cv_red_flags %}
+<h3>红旗警告</h3>
+{% for rf in cv_red_flags %}
+<div class="flag flag-warn">{{ rf }}</div>
+{% endfor %}
+{% endif %}
+
+{% endif %}  <!-- end cv_error -->
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- 财报深度分析洞察 (v0.25) -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+{% if has_fi %}
+<h2>3. 财报深度分析洞察</h2>
+<div class="grid">
+  <div class="card">
+    <h3>模块1: 收入利润趋势</h3>
+    <div style="font-size:0.85rem;color:var(--text);line-height:1.8;">{{ fi.revenue_trend_str }}</div>
+    <div style="margin-top:4px;font-size:0.78rem;color:var(--accent);">评级: {{ fi.growth_stability }}</div>
+  </div>
+  <div class="card">
+    <h3>模块2: 利润率拆解</h3>
+    <div style="font-size:0.85rem;color:var(--text);line-height:1.8;">{{ fi.margin_trend_str }}</div>
+  </div>
+  <div class="card">
+    <h3>模块3: ROE 杜邦拆解</h3>
+    <div style="font-size:0.85rem;color:var(--text);line-height:1.8;">{{ fi.roe_trend_str }}</div>
+    {% if fi.dupont_components %}
+    <table style="margin-top:8px;">
+      <tr><th>年份</th><th>净利率(%)</th><th>周转率</th><th>权益乘数</th></tr>
+      {% for d in fi.dupont_components %}
+      <tr><td>{{ d.year }}</td><td>{{ d.net_margin }}</td><td>{{ d.asset_turnover }}</td><td>{{ d.equity_multiplier }}</td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h3>模块4: 现金流质量</h3>
+    <div style="font-size:0.85rem;color:var(--text);line-height:1.8;">{{ fi.cash_quality_str }}</div>
+    <div style="margin-top:4px;font-size:0.78rem;color:{% if fi.cash_quality == '优秀' or fi.cash_quality == '良好' %}var(--green){% else %}var(--yellow){% endif %};">评级: {{ fi.cash_quality }}</div>
+  </div>
+  <div class="card">
+    <h3>模块5: 资产负债健康度</h3>
+    <div style="font-size:0.85rem;color:var(--text);line-height:1.8;">{{ fi.balance_health_str }}</div>
+    <div style="margin-top:4px;font-size:0.78rem;color:{% if fi.balance_health == '稳健' %}var(--green){% elif fi.balance_health == '适中' %}var(--accent){% else %}var(--yellow){% endif %};">评级: {{ fi.balance_health }}</div>
+  </div>
+  <div class="card">
+    <h3>模块6: 分红政策</h3>
+    <div style="font-size:0.85rem;color:var(--text);line-height:1.8;">{{ fi.dividend_policy_str }}</div>
+  </div>
+  <div class="card">
+    <h3>模块7: 营运效率</h3>
+    <div style="font-size:0.85rem;color:var(--text);line-height:1.8;">{{ fi.efficiency_str }}</div>
+    <div style="margin-top:4px;font-size:0.78rem;color:var(--accent);">评级: {{ fi.working_capital_efficiency }}</div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- LLM 商业知识 (v0.25) -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+{% if has_bk %}
+<h2>4. LLM 商业知识检索</h2>
+<div style="color:var(--text-dim);font-size:0.82rem;margin-bottom:12px;">数据来源: {{ bk.source }}</div>
+<div class="grid">
+  <div class="card">
+    <h3>商业模式与护城河</h3>
+    <div style="font-size:0.85rem;color:var(--text);line-height:1.8;">{{ bk.business_model }}</div>
+  </div>
+  <div class="card">
+    <h3>管理层与治理</h3>
+    <div style="font-size:0.85rem;color:var(--text);line-height:1.8;">{{ bk.management }}</div>
+  </div>
+  <div class="card">
+    <h3>行业地位</h3>
+    <div style="font-size:0.85rem;color:var(--text);line-height:1.8;">{{ bk.industry_position }}</div>
+  </div>
+  <div class="card">
+    <h3>风险与监管</h3>
+    <div style="font-size:0.85rem;color:var(--text);line-height:1.8;">{{ bk.risk_regulation }}</div>
+  </div>
+  <div class="card">
+    <h3>分红与回购</h3>
+    <div style="font-size:0.85rem;color:var(--text);line-height:1.8;">{{ bk.dividend_buyback }}</div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- L3 十二维详情 -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2>{% if has_fi or has_bk %}5{% else %}3{% endif %}. L3 商业模式十二维</h2>
+{% if l3_dim_scores %}
+<table>
+  <thead>
+    <tr><th>分组</th><th>维度</th><th>得分</th><th>满分</th><th>说明</th></tr>
+  </thead>
+  <tbody>
+    {% for id, d in l3_dim_scores.items() %}
+    <tr>
+      <td>{{ d.group }}</td>
+      <td>{{ d.name }}</td>
+      <td>{{ "%.0f"|format(d.score) }}</td>
+      <td>2</td>
+      <td style="color:var(--text-dim);">{{ d.label }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- L4 PR 公式展开 -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2>{% if has_fi or has_bk %}6{% else %}4{% endif %}. L4 穿透回报率公式展开</h2>
+<div class="card">
+  <div style="font-size:0.85rem;color:var(--accent);margin-bottom:12px;">
+    PR = (可支配现金 × 分配比率 + 回购注销) / 当前市值
+  </div>
+  <table>
+    <tr><th>组件</th><th>值</th><th>来源</th></tr>
+    <tr>
+      <td>可支配现金</td>
+      <td>{{ pr_disposable_cash }} 亿</td>
+      <td style="color:var(--text-dim);">经营CF - 维持性CAPEX - 并购 - 参股 + 货币资金 - 短期借款 + 交易性金融资产</td>
+    </tr>
+    <tr>
+      <td>分配比率</td>
+      <td>{{ "%.1f"|format(pr_distribution_ratio) }}%</td>
+      <td style="color:var(--text-dim);">{{ pr_distribution_source_label }}</td>
+    </tr>
+    <tr>
+      <td>回购注销</td>
+      <td>{{ pr_buyback_cancellation_label }} 亿</td>
+      <td style="color:var(--text-dim);">Web搜索+LLM提取</td>
+    </tr>
+    <tr style="font-weight:700;border-top:2px solid var(--border);">
+      <td>PR</td>
+      <td style="color:{{ pr_color }};">{{ "%.2f"|format(pr_pct) }}%</td>
+      <td></td>
+    </tr>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- FOOTER -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="footer">
+  龟龟投资策略框架 v0.25 · 交叉验证报告 · 本报告仅供研究参考，不构成投资建议。<br>
+  生成时间: {{ generated_at }}
+</div>
+</body></html>

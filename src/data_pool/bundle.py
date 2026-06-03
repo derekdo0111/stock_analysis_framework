@@ -40,3 +40,6 @@ class StockDataBundle:
     dividend_commitment: Any = None  # DividendCommitment | None
     buyback_cancellation: Any = None  # BuybackCancellation | None
     restricted_cash: float = 0.0      # 限制性货币（万元）
+
+    # ── v0.25: 财报深度分析结果（FinancialInsights | None） ──
+    financial_insights: Any = None

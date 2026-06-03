@@ -219,6 +219,26 @@ class DataPoolOrchestrator:
             buyback_cancellation=buyback,
         )
 
+    def cache_financial_insights(
+        self,
+        ts_code: str,
+        insights: Any,
+    ) -> None:
+        """缓存财报深度分析结果。
+
+        Args:
+            ts_code: 股票代码
+            insights: FinancialInsights 对象
+        """
+        try:
+            import pickle as _pickle
+            cache_path = self._storage._base / f"{ts_code}_fin_insights.pkl"
+            with open(cache_path, "wb") as f:
+                _pickle.dump(insights, f)
+            logger.debug(f"[{ts_code}] 财报洞察已缓存")
+        except Exception as e:
+            logger.debug(f"[{ts_code}] 财报洞察缓存保存失败: {e}")
+
     # ── Internal: fetch all datasets ────────────────────────
 
     def _fetch_all(self, ts_code: str) -> dict[str, pd.DataFrame | None]:

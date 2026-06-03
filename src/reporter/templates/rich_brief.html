@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>龟龟策略简报 — {{ name }} ({{ ts_code }})</title>
+<style>
+  :root {
+    --bg:#0d1117; --card:#161b22; --border:#30363d; --text:#c9d1d9;
+    --accent:#58a6ff; --green:#3fb950; --yellow:#d2991d; --red:#f85149;
+    --text-dim:#8b949e; --orange:#db6d28;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+         padding:32px; max-width:1200px; margin:0 auto; line-height:1.7; }
+  h1 { font-size:1.6rem; margin-bottom:4px; }
+  h2 { font-size:1.15rem; margin:36px 0 14px; border-bottom:1px solid var(--border); padding-bottom:8px; color:var(--accent); }
+  h3 { font-size:0.95rem; margin:12px 0 6px; color:var(--text-dim); }
+
+  /* header */
+  .header { text-align:center; margin-bottom:32px; }
+  .header .score { font-size:2.8rem; font-weight:700; color:var(--green); }
+  .header .meta { color:var(--text-dim); font-size:0.85rem; }
+  .pool-tag { display:inline-block; padding:4px 16px; border-radius:20px; font-size:0.88rem; font-weight:600; margin-left:10px; vertical-align:middle; }
+  .pool-core { background:#1a3a2a; color:var(--green); }
+  .pool-watch { background:#3a2a0a; color:var(--yellow); }
+  .pool-fallback { background:#1a1a2e; color:var(--text-dim); }
+
+  /* 打分条 */
+  .score-bar { display:flex; gap:8px; justify-content:center; margin:16px 0; }
+  .score-item { text-align:center; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 16px; min-width:70px; }
+  .score-item .label { font-size:0.75rem; color:var(--text-dim); }
+  .score-item .val { font-size:1.2rem; font-weight:700; }
+
+  /* 表格通用 */
+  table { width:100%; border-collapse:collapse; font-size:0.82rem; margin:8px 0 16px; }
+  th, td { padding:6px 10px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; }
+  th { color:var(--text-dim); font-weight:500; font-size:0.78rem; background:rgba(22,27,34,0.5); }
+  td { font-variant-numeric:tabular-nums; }
+  tr:hover { background:rgba(88,166,255,0.04); }
+
+  .pass { color:var(--green); }
+  .fail { color:var(--red); }
+
+  /* 区域A 表格 —— 年份在左侧，趋势一目了然 */
+  .trend-table td:first-child { color:var(--accent); font-weight:500; }
+
+  /* 管线表格 —— 步骤列有小标题 */
+  .step-group { background:rgba(22,27,34,0.6); font-weight:600; color:var(--accent); font-size:0.8rem; }
+  .step-group td { border-top:1px solid var(--border); padding-top:10px; }
+
+  .breakdown-table td:last-child { text-align:right; font-weight:500; }
+
+  .footer { text-align:center; color:var(--text-dim); font-size:0.82rem; margin-top:48px; padding-top:24px; border-top:1px solid var(--border); }
+
+  /* 紧凑卡片 */
+  .card-row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+  .mini-card { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:12px 16px; flex:1; min-width:160px; }
+  .mini-card .label { font-size:0.75rem; color:var(--text-dim); margin-bottom:4px; }
+  .mini-card .val { font-size:1.1rem; font-weight:700; }
+
+  @media (max-width: 768px) {
+    body { padding:16px; }
+    table { font-size:0.72rem; }
+    th, td { padding:4px 6px; }
+    .score-bar { flex-wrap:wrap; }
+    .card-row { flex-direction:column; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════ HEADER ══════════ -->
+<div class="header">
+  <h1>{{ name }} <span style="color:var(--text-dim);font-size:0.65em;">{{ ts_code }}</span></h1>
+  <div class="score">{{ final_score }}<span style="font-size:0.4em;color:var(--text-dim);"> /100</span></div>
+  <span class="pool-tag {% if pool == '核心池' %}pool-core{% elif pool == '观察池' %}pool-watch{% else %}pool-fallback{% endif %}">{{ pool }}</span>
+  <div class="meta">龟龟投资策略 v0.23 &middot; {{ generated_at }}</div>
+</div>
+
+<!-- ══════════ 打分概览 ══════════ -->
+<div class="score-bar">
+  <div class="score-item"><div class="label">L3 商业模式</div><div class="val" style="color:var(--green);">{{ l3_score }}<span style="font-size:0.6em;">/30</span></div></div>
+  <div class="score-item"><div class="label">L4 穿透回报率</div><div class="val" style="color:var(--accent);">{{ l4_score }}<span style="font-size:0.6em;">/45</span></div></div>
+  <div class="score-item"><div class="label">L5 安全边际</div><div class="val" style="color:var(--yellow);">{{ l5_score }}<span style="font-size:0.6em;">/25</span></div></div>
+  <div class="score-item" style="border-color:var(--accent);"><div class="label">L2 门控</div><div class="val" style="color:var(--text-dim);">{{ l2_score }}<span style="font-size:0.6em;">/20</span></div></div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     区域A: 核心数据趋势
+     ═══════════════════════════════════════ -->
+<h2>区域 A · 核心数据趋势</h2>
+
+<!-- 表A1. 三大报表 -->
+<h3>表A1. 三大报表关键行 &nbsp;<span style="color:var(--text-dim);font-size:0.8em;">单位：亿元</span></h3>
+{% if table_a1_financials.rows %}
+<div style="overflow-x:auto;">
+<table class="trend-table">
+  <thead>
+    <tr>
+      <th>年份</th>
+      {% for col in table_a1_financials.columns %}
+      <th title="{{ col.field }}">{{ col.label }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in table_a1_financials.rows %}
+    <tr>
+      <td>{{ row.year }}</td>
+      {% for col in table_a1_financials.columns %}
+      <td>{{ row[col.field] }}</td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+<p style="font-size:0.75rem;color:var(--text-dim);margin-top:-8px;">
+  来源：cashflow + income + balancesheet（Tushare），年末截面
+</p>
+{% else %}
+<div style="color:var(--text-dim);font-size:0.85rem;">无数据</div>
+{% endif %}
+
+<!-- 表A2. 财务指标 -->
+<h3>表A2. 财务指标 &nbsp;<span style="color:var(--text-dim);font-size:0.8em;">单位：%</span></h3>
+{% if table_a2_indicators.rows %}
+<table class="trend-table">
+  <thead>
+    <tr>
+      <th>年份</th>
+      {% for col in table_a2_indicators.columns %}
+      <th title="{{ col.field }}">{{ col.label }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in table_a2_indicators.rows %}
+    <tr>
+      <td>{{ row.year }}</td>
+      {% for col in table_a2_indicators.columns %}
+      <td>{{ row[col.field] }}</td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p style="font-size:0.75rem;color:var(--text-dim);margin-top:-8px;">
+  来源：fina_indicator（Tushare），年末截面
+</p>
+{% else %}
+<div style="color:var(--text-dim);font-size:0.85rem;">无数据</div>
+{% endif %}
+
+<!-- 表A3. 估值快照 -->
+<h3>表A3. 估值快照 &nbsp;<span style="color:var(--text-dim);font-size:0.8em;">{{ table_a3_valuation.trade_date or '' }}</span></h3>
+{% if table_a3_valuation %}
+<div class="card-row">
+  <div class="mini-card"><div class="label">总市值（亿）</div><div class="val">{{ table_a3_valuation.total_mv }}</div></div>
+  <div class="mini-card"><div class="label">市盈率</div><div class="val">{{ table_a3_valuation.pe }}</div></div>
+  <div class="mini-card"><div class="label">市净率</div><div class="val">{{ table_a3_valuation.pb }}</div></div>
+  <div class="mini-card"><div class="label">市销率</div><div class="val">{{ table_a3_valuation.ps }}</div></div>
+  <div class="mini-card"><div class="label">股息率</div><div class="val">{{ table_a3_valuation.dv_ratio }}%</div></div>
+  <div class="mini-card"><div class="label">换手率</div><div class="val">{{ table_a3_valuation.turnover_rate }}%</div></div>
+</div>
+<p style="font-size:0.75rem;color:var(--text-dim);">
+  来源：daily_basic（Tushare），最新交易日
+</p>
+{% else %}
+<div style="color:var(--text-dim);font-size:0.85rem;">无数据</div>
+{% endif %}
+
+<!-- 表A4. 分红记录 -->
+<h3>表A4. 分红记录 &nbsp;<span style="color:var(--text-dim);font-size:0.8em;">单位：元/股</span></h3>
+{% if table_a4_dividend.rows %}
+<table class="trend-table">
+  <thead>
+    <tr><th>年度</th><th>每股派息（税前）</th><th>每股派息（税后）</th><th>进度</th></tr>
+  </thead>
+  <tbody>
+    {% for row in table_a4_dividend.rows %}
+    <tr>
+      <td>{{ row.year }}</td>
+      <td>{{ row.cash_div }}</td>
+      <td>{{ row.cash_div_tax }}</td>
+      <td>{{ row.div_proc }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p style="font-size:0.75rem;color:var(--text-dim);margin-top:-8px;">
+  来源：dividend（Tushare），仅"实施"状态
+</p>
+{% else %}
+<div style="color:var(--text-dim);font-size:0.85rem;">无分红记录</div>
+{% endif %}
+
+
+<!-- ═══════════════════════════════════════
+     区域B: 管线计算表格
+     ═══════════════════════════════════════ -->
+<h2>区域 B · 管线计算推导</h2>
+
+<!-- 表B1. HardGate -->
+<h3>表B1. HardGate 否决检查</h3>
+{% if table_b1_hardgate["items"] %}
+<table>
+  <thead><tr><th>检查项</th><th>数据</th><th style="width:50px;">结果</th></tr></thead>
+  <tbody>
+    {% for item in table_b1_hardgate["items"] %}
+    <tr>
+      <td>{{ item.name }}</td>
+      <td style="color:var(--text-dim);">{{ item.value }}</td>
+      <td class="{% if item.passed %}pass{% else %}fail{% endif %}">{% if item.passed %}✅{% else %}❌{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div style="color:var(--text-dim);font-size:0.85rem;">HardGate 数据未捕获</div>
+{% endif %}
+
+<!-- 表B2. L2 -->
+<h3>表B2. L2 初筛（门控）</h3>
+{% if table_b2_l2.rows %}
+<table class="breakdown-table">
+  <thead><tr><th>维度</th><th>指标</th><th>原始值</th><th style="width:80px;">得分</th></tr></thead>
+  <tbody>
+    {% for row in table_b2_l2.rows %}
+    <tr>
+      <td>{{ row.dim }}</td>
+      <td>{{ row.metric }}</td>
+      <td style="color:var(--text-dim);">{{ row.value }}</td>
+      <td>{{ row.score }}{% if row.max %}<span style="color:var(--text-dim);font-size:0.75em;"> / {{ row.max }}</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    <tr style="font-weight:700;border-top:2px solid var(--border);">
+      <td colspan="2">合计</td>
+      <td></td>
+      <td>{{ table_b2_l2.total }}<span style="color:var(--text-dim);font-size:0.75em;"> / {{ table_b2_l2.max }}</span></td>
+    </tr>
+  </tbody>
+</table>
+{% if table_b2_l2.pool %}
+<div style="font-size:0.8rem;color:var(--text-dim);">分流：{{ table_b2_l2.pool }}</div>
+{% endif %}
+{% else %}
+<div style="color:var(--text-dim);font-size:0.85rem;">L2 数据未捕获</div>
+{% endif %}
+
+<!-- 表B3. L3 -->
+<h3>表B3. L3 商业模式十二维</h3>
+{% if table_b3_l3.rows %}
+<div class="card-row">
+  {% for gid, g in table_b3_l3.groups.items() %}
+  <div class="mini-card"><div class="label">{{ g.name }}</div><div class="val" style="font-size:0.95rem;">{{ g.total }} / {{ g.count * 2 }}</div></div>
+  {% endfor %}
+</div>
+<table class="breakdown-table">
+  <thead><tr><th width="60">分组</th><th>维度</th><th style="color:var(--text-dim);">说明</th><th style="width:60px;">得分</th></tr></thead>
+  <tbody>
+    {% for row in table_b3_l3.rows %}
+    <tr>
+      <td style="color:var(--accent);font-size:0.78rem;">{{ row.group }}</td>
+      <td>{{ row.name }}</td>
+      <td style="color:var(--text-dim);font-size:0.78rem;max-width:300px;">{{ row.label }}</td>
+      <td>{{ row.score }} / {{ row.max }}</td>
+    </tr>
+    {% endfor %}
+    <tr style="font-weight:700;border-top:2px solid var(--border);">
+      <td colspan="3">维度总分 → L3得分 ({{ table_b3_l3.level }})</td>
+      <td>{{ table_b3_l3.total_dim }}<span style="color:var(--text-dim);font-size:0.75em;"> / {{ table_b3_l3.max_dim }}</span> → {{ table_b3_l3.l3_score }}<span style="color:var(--text-dim);font-size:0.75em;"> / {{ table_b3_l3.max_score }}</span></td>
+    </tr>
+  </tbody>
+</table>
+{% else %}
+<div style="color:var(--text-dim);font-size:0.85rem;">L3 数据未捕获</div>
+{% endif %}
+
+<!-- 表B4. L4 -->
+<h3>表B4. L4 穿透回报率 <span style="color:var(--text-dim);font-size:0.85em;">PR = {{ table_b4_l4.pr_pct }}%</span></h3>
+{% if table_b4_l4.rows %}
+<table class="breakdown-table">
+  <thead><tr><th>组件</th><th>子项</th><th>值</th><th style="color:var(--text-dim);">来源</th></tr></thead>
+  <tbody>
+    {% for row in table_b4_l4.rows %}
+    <tr>
+      <td>{{ row.step }}</td>
+      <td>{{ row.item }}</td>
+      <td>{{ row.value }}</td>
+      <td style="color:var(--text-dim);font-size:0.75rem;">{{ row.source }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p style="font-size:0.78rem;color:var(--yellow);margin-top:4px;">
+  ⚠ 持股不足1个月需缴纳10%红利税，穿透回报率未预先扣除
+</p>
+{% else %}
+<div style="color:var(--text-dim);font-size:0.85rem;">L4 数据未捕获</div>
+{% endif %}
+
+<!-- 表B5. L5 -->
+<h3>表B5. L5 安全边际 <span style="color:var(--text-dim);font-size:0.85em;">折现率 = {{ table_b5_l5.discount_rate }}</span></h3>
+{% if table_b5_l5.rows %}
+<table class="breakdown-table">
+  <thead><tr><th>组件</th><th>子项</th><th>值</th><th style="width:90px;">得分</th></tr></thead>
+  <tbody>
+    {% for row in table_b5_l5.rows %}
+    <tr {% if row.component == '合计' %}style="font-weight:700;border-top:2px solid var(--border);"{% endif %}>
+      <td>{{ row.component }}</td>
+      <td>{{ row.item }}</td>
+      <td style="color:var(--text-dim);">{{ row.value }}</td>
+      <td>{{ row.score }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div style="color:var(--text-dim);font-size:0.85rem;">L5 数据未捕获</div>
+{% endif %}
+
+
+<!-- ══════════ FOOTER ══════════ -->
+<div class="footer">
+  龟龟投资策略框架 v0.23 &middot; 简报（数据溯源版）&middot; 本报告仅供研究参考，不构成投资建议。<br>
+  生成时间: {{ generated_at }}
+</div>
+
+</body>
+</html>

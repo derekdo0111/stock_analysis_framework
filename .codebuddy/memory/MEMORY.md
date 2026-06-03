@@ -56,9 +56,32 @@
 - 如果 API 不可用，必须明确标注「此数据为估算/示例，非真实值」
 - 用户于 2026-06-01 发现 agent 在解释回测流程时编造了茅台分红数据（实际应调用 Tushare dividend 接口获取），此为严重错误，写入铁律防止再犯
 
+### ⛔ 铁律：实现前必须先输出改动清单（2026-06-03 确立）
+
+- **触发条件**：任何以「实现一下」「开始写吧」「写代码」「动手吧」「干吧」等表达了「可以开始执行」语义的用户消息
+- **强制动作**：在调用 write_to_file / replace_in_file 之前，必须先用纯文本输出一份改动清单，格式如：
+  ```
+  本次改动清单：
+  新增 N 个文件: xxx.py, yyy.py, zzz.html
+  修改 M 个文件: aaa.py (改xxx), bbb.py (改yyy)
+  修改 K 个管理文件: plan.md, TRACEABILITY.md, verify_traceability.py, CHANGELOG.md, PROJECT_STATUS.md, MEMORY.md
+  → 确认无误我开始写？
+  ```
+- **目的**：把「讨论语言」翻译成「执行清单」，防止跳过 plan → 实现之间的核对环节。管理文件是清单的一部分，不是事后的审计负担
+- **例外**：hotfix（单文件修 bug）可以跳过清单直接写，但仍需事后补 CHANGELOG + 记忆文件
+- 此规则于 2026-06-03 确认，针对 2026-06-03 简报功能开发中跳过 plan 直接写代码的问题
+
+### 简报模板（2026-06-03 新增）
+- `src/reporter/unit_converter.py` — 可配置单位转换层：`DATA_SOURCE["tushare"]` 定义字段→源单位映射，`to_yi()` 统一转为亿元
+- `src/reporter/brief_builder.py` — `BriefBuilder(bundle, final_score)` 组装 context dict（区域A 4张数据趋势表 + 区域B 5张管线计算表）
+- `src/reporter/templates/rich_brief.html` — Jinja2 深色主题简报模板
+- CLI: `stock-analyze 600519.SH --brief` 生成 `brief_600519_SH.html`
+- 三大报表字段 Tushare 返回"元"；daily_basic.total_mv 返回"万元"；fina_indicator 比率类返回"%"
+
 ### stock-analysis-framework (D:\project\stock-analysis-framework\)
-- 龟龟投资策略 v0.23，Python 3.11+ / Pydantic v2 / Pandas / Tushare / Jinja2 / loguru / tenacity
-- 阶段一~五完成，162 测试
+- 龟龟投资策略 v0.25，Python 3.11+ / Pydantic v2 / Pandas / Tushare / Jinja2 / loguru / tenacity
+- 阶段一~六，80+ 源文件
+- v0.25 新增: 7模块财报深度分析(纯Python) + LLM商业知识检索(合并交叉验证) + 三维对比(管线vs财报洞察vs LLM知识) + 删除DuckDuckGo
 - v0.23 核心公式: **Final = L3(30pt) + L4(45pt) + L5(25pt) = 100pt** (加法百分制)
 - L3: 十二维商业模式评估 (盈利能力5+成熟度3+资本纪律2+治理2), 每维0-2分, 满分24→30
 - L4: 穿透回报率, 内部满分40缩放至45
@@ -66,10 +89,14 @@
 - L2 降级为纯门控, 不参与最终评分
 - 分池阈值: 核心≥75, 观察50-74, 备选<50
 - GitHub: https://github.com/derekdo0111/stock_analysis_framework (main 分支)
+- 新管线: Phase1(Tushare) → Phase2(打分) → Phase3(财报深度分析) → Phase4(LLM商业知识检索+交叉验证) → Phase5(brief.md) → Phase6(HTML报告)
+- 财报深度分析: 7模块纯Python确定性计算, 从Tushare三大报表提取结构化洞察
+- LLM 商业知识检索: LLM基于训练数据回答5类商业问题, 合并交叉验证为一次调用
+- 降级链: API LLM → Python规则引擎（财报洞察 vs 管线得分简单对比）
 - 核心理念：确定性计算(Python)与智能判断(LLM)彻底分离
 - 所有规则存储在 YAML 中，代码不做硬编码阈值
 - 数据双格式存储：JSON（可读调试）+ Parquet（高性能查询）
-- 数据源四层架构：Tushare(主) → akshare(备用) → Web+LLM提取(Layer3) → 年报PDF(降级)
+- 数据源四层架构：Tushare(主) → akshare(备用) → 财报深度分析(Python) → LLM商业知识(LLM) → 年报PDF(降级)
 
 ### Projects Location
 - 所有项目统一放在 D:\project\ 下，不放在 C:\Users\harry\CodeBuddy\

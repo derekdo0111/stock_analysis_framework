@@ -1,5 +1,107 @@
 # Changelog
 
+## [v0.26] - 2026-06-03 — Bug修复：取数粒度 + 单位换算 + 送转股 + NaN防御
+
+### Fixed
+- **财报深度分析取数粒度Bug**: `_get_yearly()`/`_get_yearly_years()` 不区分季报/年报，Q1 营收与年报直接做CAGR导致-24.9%（应为+6.9%）。修复: 增加 `endswith("1231")` 年报过滤 + 升序 `tail(n)` 保证时序正确
+- **DuPont/营运效率取数Bug**: `_analyze_roe_dupont()`/`_analyze_efficiency()` 按位置对齐 income 与 balance（无年报过滤），改为按 `end_date` 精确匹配
+- **DisposableCash 列名Bug**: `st_borrow`/`tradable_fin_assets` 在 Tushare 中不存在 → DC=NaN。修复: `st_borr`/`trad_asset` + `_safe_val()` NaN防御
+- **L5 合理市值显示Bug**: `l5_reasonable_mv` 为万元，但显示时除以 1e8（应为 1e4）→ 1.1万亿 显示为 1.1亿
+- **L5 资产底价单位Bug**: `_eval_asset_floor()` 中 `net_liquid`(元) 与 `current_mv`(万元) 直接相除，比率差 10000x
+- **L3 股本变动Bug**: `_eval_share_count_trend()` 将送转股（`stk_div`+`stk_bo_rate`）当作融资摊薄扣分
+
+### Changed
+- `_get_yearly()` 默认排序改为 `ascending=True`，`tail(n)` 取最新 n 年
+- DisposableCash 所有字段统一使用 `_safe_val()` 防护 NaN（Pandas `or 0` 不可靠）
+
+### Results
+- 茅台交叉验证矛盾率: **4/7 (57%) → 2/5 (40%)**
+- 财报数据全量修复: 营收CAGR -24.9%→6.9%, 经营CF/NI 10.84→0.75, 净负债率 27%→16.4%, 自由现金流 21亿→546亿
+- DC 从 NaN → 1075亿, PR 从 NaN% → 4.33%
+
+### Files
+- `src/calculator/financial_deep_analysis.py` — 取数粒度修复
+- `src/calculator/turtle_strategy/l5_calculator.py` — 资产底价单位修复
+- `src/calculator/turtle_strategy/l3_calculator.py` — 股本变动修复
+- `src/data_pool/schema/disposable_cash.py` — 列名修复 + NaN防御
+- `src/reporter/brief_md_builder.py` — 合理市值显示修复
+- `src/reporter/report_generator.py` — 合理市值显示修复
+
+---
+
+## [v0.25] - 2026-06-03 — 财报深度分析 + LLM 商业知识检索 + 三维交叉验证
+
+### Added
+- **财报深度分析引擎** (`financial_deep_analysis.py`): 7模块纯Python计算，从Tushare三大报表提取结构化洞察（收入利润趋势/利润率拆解/ROE杜邦/现金流质量/资产负债健康度/分红政策/营运效率），输出 `FinancialInsights` dataclass
+- **LLM 商业知识检索** (集成到 `cross_validation_agent.py`): 合并检索+交叉验证为一步，LLM 基于训练数据回答5类商业问题（商业模式/管理层/行业地位/风险监管/分红回购），同时三维对比（管线得分 vs 财报洞察 vs LLM知识）
+
+### Changed
+- **交叉验证 Agent 重写**: System prompt 从二维对比（管线vs Web）升级为三维对比（管线 vs 财报洞察 vs LLM知识）
+- **brief.md 重构**: Section 3 从「Web搜索商业分析」改为「财报深度分析洞察」+「交叉验证结果」
+- **CLI 管线重排**: Phase 3→财报深度分析, Phase 4→LLM商业知识检索+交叉验证（合并）, Phase 5→brief.md, Phase 6→HTML报告
+- `orchestrator.py`: 新增 `cache_financial_insights()` 方法
+- `StockDataBundle`: `web_search_results` → `financial_insights`
+- `report_generator.py`: `_build_cv_context` 接入 `FinancialInsights`
+- `cross_validated_report.html`: 新增财报洞察7模块展示区
+
+### Removed
+- **DuckDuckGo Web 搜索** 全面删除：`web_searcher.py` 删除，所有引用清理（中文搜索质量差，LLM训练数据更可靠）
+- `pyproject.toml`: 移除 `duckduckgo-search` 依赖
+
+### Design
+- 财报洞察 vs LLM知识彻底分离：前者纯Python确定性计算，后者LLM质性判断
+- 商业知识检索+交叉验证合并为一次LLM调用，减少延迟
+- 降级链：API LLM → Python规则引擎（财报洞察 vs 管线得分简单对比）
+
+### Files
+- `src/calculator/financial_deep_analysis.py` — 新文件 (~450行)
+- `src/data_fetcher/web_searcher.py` — 删除
+- `src/llm/cross_validation_agent.py` — 重写 (~350行)
+- `src/reporter/brief_md_builder.py` — 重构（4块结构）
+- `src/cli.py` — 改造（管线重排）
+- `src/data_fetcher/orchestrator.py` — 改造（移除 run_web_search）
+- `src/data_pool/bundle.py` — 改造（字段替换）
+- `src/data_fetcher/__init__.py` — 改造（移除 DuckDuckGo 相关导出）
+- `src/reporter/report_generator.py` — 改造（接入 FinancialInsights）
+- `src/reporter/templates/cross_validated_report.html` — 改造（新增财报洞察区）
+- `TRACEABILITY.md`, `CHANGELOG.md`, `PROJECT_STATUS.md`, `docs/plan.md`, `scripts/verify_traceability.py`, `.codebuddy/memory/MEMORY.md`, `pyproject.toml`, `README.md`
+
+---
+
+## [v0.24] - 2026-06-03 — Web 搜索 + brief.md 数据底稿 + LLM 交叉验证
+
+### Added
+- **Web 搜索器** (`web_searcher.py`): `SearchBackend` 抽象基类 + `DuckDuckGoBackend` 默认实现，5类广义商业研究（商业模式/管理层/行业地位/风险监管/分红回购），可插拔切换 Bing/SerpAPI
+- **brief.md 数据底稿组装器** (`brief_md_builder.py`): 拼合 Tushare原始数据 + L2-L5管线得分 + Web搜索结果 → Markdown 字符串，作为 LLM 交叉验证的输入
+- **LLM 交叉验证 Agent** (`cross_validation_agent.py`): 读 brief.md → 逐维对比 Web 搜索结果 vs L2-L5 得分 → 标注不一致 → 输出结构化结论 + 修正建议
+- **含交叉验证结论的 HTML 报告** (`cross_validated_report.html`): 新模板，在现有报告基础上新增交叉验证结论展示区域
+- **CLI** 新增 `--cross-validate` 参数，编排 Phase 3(Web搜索) → Phase 4(brief.md) → Phase 5(LLM交叉验证) → Phase 6(报告)
+
+### Changed
+- `orchestrator.py`: 新增 `_fetch_web_search()` 方法，在 Phase 2 打分后执行 Web 搜索
+- `StockDataBundle`: 新增 `web_search_results: dict` 字段
+- `__init__.py` (data_fetcher): 导出 WebSearcher
+- `report_generator.py`: 新增 `generate_cross_validated()` / `save_cross_validated()` 方法
+
+### Design
+- Web 搜索不是逐维定向搜索，而是 5 类广义商业研究
+- brief.md 是管线运行后的"数据档案"，三块合一，不是最终输出品
+- LLM 自己读 brief.md 做逐维对比，不做预筛选/预匹配
+
+### Files
+- `src/data_fetcher/web_searcher.py` — 新文件 (~300行)
+- `src/reporter/brief_md_builder.py` — 新文件 (~400行)
+- `src/llm/cross_validation_agent.py` — 新文件 (~350行)
+- `src/reporter/templates/cross_validated_report.html` — 新文件 (~500行)
+- `src/data_fetcher/orchestrator.py` — 修改（新增 Web 搜索调用）
+- `src/data_fetcher/__init__.py` — 修改（导出 WebSearcher）
+- `src/cli.py` — 修改（新增 --cross-validate 参数）
+- `src/reporter/report_generator.py` — 修改（新增交叉验证报告方法）
+- `src/data_pool/bundle.py` — 修改（新增 web_search_results 字段）
+- `TRACEABILITY.md`, `CHANGELOG.md`, `PROJECT_STATUS.md`, `docs/plan.md`, `scripts/verify_traceability.py`, `.codebuddy/memory/MEMORY.md`
+
+---
+
 ## [v0.23] - 2026-06-03 — L3 十二维商业模式评估 + L5 估值安全边际重构 + 加法百分制
 
 ### Added
@@ -35,6 +137,27 @@
 - `src/calculator/turtle_strategy/scoring.py` — 集成新 L3/L5 + 百分制缩放
 - `src/reporter/report_generator.py` — 十二维展开 + L5 估值分解展示
 - `CHANGELOG.md`, `PROJECT_STATUS.md`
+
+---
+
+## [v0.23] - 2026-06-03 (追加) — 简报功能：数据溯源 + 管线推导
+
+### Added
+- **简报 (Brief) 模块**: 在完整 HTML 报告之外新增轻量简报，包含：
+  - **区域 A · 核心数据趋势**: 4 张表 — A1 三大报表合并视图(亿) / A2 财务指标(%) / A3 估值快照(最新交易日) / A4 分红记录(元/股)
+  - **区域 B · 管线计算推导**: 5 张表 — B1 HardGate / B2 L2初筛 / B3 L3十二维 / B4 L4穿透回报率公式展开 / B5 L5安全边际
+  - 所有简称统一中文，所有货币量统一为「亿元」
+- **可配置单位转换层** (`unit_converter.py`): `DATA_SOURCE` 字典定义各字段源单位（三大报表=元, daily_basic=万元, fina_indicator=%, dividend=元/股），`to_yi()` 一键转亿元。切换港股/美股只需加配置，自检≤十万亿报警
+- **简报组装器** (`brief_builder.py`): 从 `StockDataBundle` + `FinalScore` 提取所有原始值+中间计算值，组装 Jinja2 context
+- **`--brief` CLI 参数**: `stock-analyze 600519.SH --brief` 生成 `brief_600519_SH.html`
+
+### Files Changed
+- `src/reporter/unit_converter.py` — 新文件 (~140行)
+- `src/reporter/brief_builder.py` — 新文件 (~420行)
+- `src/reporter/templates/rich_brief.html` — 新文件 (~260行)
+- `src/reporter/report_generator.py` — 新增 `generate_brief()` / `save_brief()` 方法
+- `src/cli.py` — 新增 `--brief` 参数
+- `TRACEABILITY.md`, `CHANGELOG.md`, `PROJECT_STATUS.md`, `docs/plan.md`
 
 
 ## [v0.22] - 2026-06-02 — DC 扣除成长性投入 + PR 真实数学回报

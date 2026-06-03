@@ -7,7 +7,7 @@
 > - **连通**：❌零生产引用 / ✅被生产代码import / —不适用（非代码项）
 > - **测试**：❌无测试文件 / ✅有测试且函数>0 / —不适用（非代码项）
 >
-> 最后更新：2026-06-03 (v0.23)
+> 最后更新：2026-06-03 (v0.26)
 
 ---
 
@@ -67,7 +67,7 @@
 | P03 | validator/data_validator.py | src/data_pool/validator/data_validator.py | ✅ | ✅ | ✅ | 数据校验 |
 | P04 | transformer/tushare_transformer.py | src/data_pool/transformer/tushare_transformer.py | ✅ | ✅ | ✅ | DF→Pydantic 转换 |
 | P05 | bundle.py | src/data_pool/bundle.py | ✅ | ✅ | ✅ | StockDataBundle，11字段 |
-| P06 | disposable_cash.py | src/data_pool/schema/disposable_cash.py | ✅ | ✅ | ✅ | 可支配现金计算器 |
+| P06 | disposable_cash.py | src/data_pool/schema/disposable_cash.py | ✅ | ✅ | ✅ | v0.26: 列名修复+NaN防御 |
 
 ## 6. src/data_fetcher/
 
@@ -78,6 +78,7 @@
 | F03 | web.py (Web数据源) | src/data_fetcher/web.py | ⚠️ | ❌ | ❌ | 占位实现 |
 | F04 | orchestrator.py (编排器) | src/data_fetcher/orchestrator.py | ✅ | ✅ | ✅ | 批次拉取+转换+存储+Layer3 |
 | F05 | web_extractor.py | src/data_fetcher/web_extractor.py | ✅ | ✅ | ✅ | Web+LLM 分红承诺/回购提取 |
+| F06 | web_searcher.py | src/data_fetcher/web_searcher.py | — | — | — | v0.25: 已删除 |
 
 ## 7. src/screener/
 
@@ -97,11 +98,12 @@
 | C03 | pr_calculator.py | src/calculator/turtle_strategy/pr_calculator.py | ✅ | ✅ | ✅ | v0.22 前瞻公式 |
 | C04 | cash_recon.py | src/calculator/turtle_strategy/cash_recon.py | ⚠️ | ❌ | ❌ | 占位实现 |
 | C05 | sotp_adjust.py | src/calculator/turtle_strategy/sotp_adjust.py | ⚠️ | ❌ | ❌ | 占位实现 |
-| C06 | l5_calculator.py | src/calculator/turtle_strategy/l5_calculator.py | ✅ | ✅ | ✅ | v0.23 纯估值安全边际 |
+| C06 | l5_calculator.py | src/calculator/turtle_strategy/l5_calculator.py | ✅ | ✅ | ✅ | v0.26: 资产底价单位修复 |
 | C07 | constants_turtle.py | src/calculator/turtle_strategy/constants_turtle.py | ⚠️ | ❌ | ❌ | 占位实现 |
 | C08 | financial_ratios.py | src/calculator/financial_ratios.py | ⚠️ | ❌ | ❌ | 占位实现 |
 | C09 | scoring.py | src/calculator/turtle_strategy/scoring.py | ✅ | ✅ | ✅ | v0.23 加法百分制 |
-| C10 | l3_calculator.py | src/calculator/turtle_strategy/l3_calculator.py | ✅ | ✅ | ✅ | v0.23 新增：十二维商业模式(0-30pt) |
+| C10 | l3_calculator.py | src/calculator/turtle_strategy/l3_calculator.py | ✅ | ✅ | ✅ | v0.26: 送转股排除 |
+| C11 | financial_deep_analysis.py | src/calculator/financial_deep_analysis.py | ✅ | ✅ | ❌ | v0.26: 取数粒度修复(年报过滤) |
 
 ## 9. src/reporter/
 
@@ -109,7 +111,11 @@
 |:--:|--------|------|:--:|:--:|:--:|------|
 | R01 | report_generator.py | src/reporter/report_generator.py | ✅ | ✅ | ✅ | Jinja2 HTML报告，v0.23十二维展开 |
 | R02 | renderer.py | src/reporter/renderer.py | ⚠️ | ❌ | ❌ | 占位实现 |
-| R03 | templates/ | src/reporter/templates/ | ✅ | — | — | analysis_report.html 存在 |
+| R03 | templates/ | src/reporter/templates/ | ✅ | — | — | analysis_report.html + rich_brief.html |
+| R04 | unit_converter.py | src/reporter/unit_converter.py | ✅ | ✅ | ❌ | 可配置单位转换层（tushare→亿元），被 brief_builder 引用 |
+| R05 | brief_builder.py | src/reporter/brief_builder.py | ✅ | ✅ | ❌ | 简报组装器，从 bundle+FinalScore 提取趋势+快照 |
+| R06 | brief_md_builder.py | src/reporter/brief_md_builder.py | ✅ | ✅ | ❌ | v0.25: brief.md数据底稿组装（Tushare+得分+财报洞察+交叉验证） |
+| R07 | cross_validated_report.html | src/reporter/templates/cross_validated_report.html | ✅ | — | — | v0.24: 含交叉验证结论的HTML报告模板 |
 
 ## 10. src/rules/
 
@@ -133,6 +139,7 @@
 | M07 | schema.py | src/llm/schema.py | ❌ | — | — | 未实现——分析/验证Pydantic Schema |
 | M08 | cache.py | src/llm/cache.py | ❌ | — | — | 未实现 |
 | M09 | prompt_builder.py | src/llm/prompt_builder.py | ❌ | — | — | 未实现——Prompt构建器 |
+| M10 | cross_validation_agent.py | src/llm/cross_validation_agent.py | ✅ | ✅ | ❌ | v0.25: 合并商业知识检索+三维交叉验证(管线vs财报洞察vs LLM知识) |
 
 ## 12. src/agents/
 
@@ -169,17 +176,17 @@
 | Rules YAML | 4 | 4 | 0 | 0 | — | — | — |
 | src/utils/ | 6 | 0 | 6 | 0 | 0/6 | 0 | 6 |
 | src/data_pool/ | 6 | 6 | 0 | 0 | 6/6 | 6 | 0 |
-| src/data_fetcher/ | 5 | 3 | 2 | 0 | 3/5 | 3 | 2 |
+| src/data_fetcher/ | 5 | 4 | 2 | 1 | 4/5 | 3 | 3 |
 | src/screener/ | 4 | 3 | 0 | 1 | 3/3 | 3 | 0 |
-| src/calculator/ | 10 | 5 | 5 | 0 | 5/10 | 5 | 5 |
-| src/reporter/ | 3 | 2 | 1 | 0 | 1/2 | 1 | 1 |
+| src/calculator/ | 11 | 6 | 5 | 0 | 6/11 | 5 | 6 |
+| src/reporter/ | 7 | 6 | 1 | 0 | 5/6 | 1 | 4 |
 | src/rules/ | 4 | 2 | 0 | 2 | 2/2 | 2 | 0 |
-| src/llm/ | 9 | 4 | 0 | 5 | 4/4 | 4 | 0 |
+| src/llm/ | 10 | 5 | 0 | 5 | 5/5 | 4 | 1 |
 | src/agents/ | 3 | 0 | 0 | 3 | — | — | — |
 | docs/ | 5 | 1 | 0 | 4 | — | — | — |
 | examples/ | 1 | 1 | 0 | 0 | — | — | — |
-| **总计** | **77** | **48** | **14** | **15** | **24/38** | **24** | **14** |
+| **总计** | **83** | **54** | **15** | **15** | **30/44** | **24** | **19** |
 
-**连通率：24/38 = 63.2%** (代码模块中被生产管线引用的比例)
-**测试覆盖率：24/38 = 63.2%** (代码模块中有 ≥1 个测试函数的比例)
-(v0.23, 2026-06-03)
+**连通率：30/44 = 68.2%** (代码模块中被生产管线引用的比例)
+**测试覆盖率：24/44 = 54.5%** (代码模块中有 ≥1 个测试函数的比例)
+(v0.26, 2026-06-03 — 取数粒度/列名修复/NaN防御/单位换算/送转股排除)

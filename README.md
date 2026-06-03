@@ -1,4 +1,4 @@
-# Stock Analysis Framework — 龟龟投资策略 v0.23
+# Stock Analysis Framework — 龟龟投资策略 v0.26
 
 融合龟龟投资策略完整方法论的 A 股量化分析框架，从选股到报告生成的全管线。
 

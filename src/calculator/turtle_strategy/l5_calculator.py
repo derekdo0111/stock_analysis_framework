@@ -231,15 +231,19 @@ class L5Calculator:
         return round(total, 1), details
 
     def _eval_asset_floor(self, current_mv: float, item) -> tuple[float, str]:
-        """资产底价: (货币资金+交易金融资产-总负债)/市值 %。"""
+        """资产底价: (货币资金+交易金融资产-总负债)/市值 %。
+        
+        current_mv 来自 daily_basic.total_mv（万元），
+        balancesheet 各字段为元，需统一为万元后再计算比率。
+        """
         try:
             bs = self._bundle.balancesheet.sort_values("end_date", ascending=False).head(1)
             if bs.empty or current_mv <= 0:
                 return 0, "数据不足"
             row = bs.iloc[0]
-            money_cap = float(row.get("money_cap") or 0)
-            trad_assets = float(row.get("trad_asset") or 0)
-            total_liab = float(row.get("total_liab") or 0)
+            money_cap = float(row.get("money_cap") or 0) / 1e4  # 元→万元
+            trad_assets = float(row.get("trad_asset") or 0) / 1e4  # 元→万元
+            total_liab = float(row.get("total_liab") or 0) / 1e4  # 元→万元
             net_liquid = money_cap + trad_assets - total_liab
             ratio = net_liquid / current_mv * 100
             for t in item.thresholds:

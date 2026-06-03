@@ -99,6 +99,7 @@ ITEMS: List[TraceItem] = [
     TraceItem("F04", "data_fetcher", "orchestrator.py (编排器)", "src/data_fetcher/orchestrator.py", "py_module", True),
     TraceItem("F05", "data_fetcher", "web_extractor.py", "src/data_fetcher/web_extractor.py", "py_module", True),
 
+
     # ── src/screener/ ──
     TraceItem("S01", "screener", "hard_gate.py", "src/screener/hard_gate.py", "py_module", True),
     TraceItem("S02", "screener", "l2_screener.py", "src/screener/l2_screener.py", "py_module", True),
@@ -116,11 +117,16 @@ ITEMS: List[TraceItem] = [
     TraceItem("C08", "calculator", "financial_ratios.py (杜邦/CAGR/分位)", "src/calculator/financial_ratios.py", "py_module", True),
     TraceItem("C09", "calculator", "scoring.py (加法百分制)", "src/calculator/turtle_strategy/scoring.py", "py_module", True),
     TraceItem("C10", "calculator", "l3_calculator.py (十二维商业模式)", "src/calculator/turtle_strategy/l3_calculator.py", "py_module", True),
+    TraceItem("C11", "calculator", "financial_deep_analysis.py (7模块财报分析)", "src/calculator/financial_deep_analysis.py", "py_module", True),
 
     # ── src/reporter/ ──
     TraceItem("R01", "reporter", "report_generator.py", "src/reporter/report_generator.py", "py_module", True),
     TraceItem("R02", "reporter", "renderer.py", "src/reporter/renderer.py", "py_module", True),
     TraceItem("R03", "reporter", "templates/", "src/reporter/templates", "dir"),
+    TraceItem("R04", "reporter", "unit_converter.py", "src/reporter/unit_converter.py", "py_module", True),
+    TraceItem("R05", "reporter", "brief_builder.py", "src/reporter/brief_builder.py", "py_module", True),
+    TraceItem("R06", "reporter", "brief_md_builder.py (brief.md组装)", "src/reporter/brief_md_builder.py", "py_module", True),
+    TraceItem("R07", "reporter", "cross_validated_report.html", "src/reporter/templates/cross_validated_report.html", "file"),
 
     # ── src/rules/ ──
     TraceItem("L01", "rules", "loader.py", "src/rules/loader.py", "py_module", True),
@@ -138,6 +144,7 @@ ITEMS: List[TraceItem] = [
     TraceItem("M07", "llm", "schema.py (Pydantic Schema)", "src/llm/schema.py", "py_module", True),
     TraceItem("M08", "llm", "cache.py", "src/llm/cache.py", "py_module", True),
     TraceItem("M09", "llm", "prompt_builder.py", "src/llm/prompt_builder.py", "py_module", True),
+    TraceItem("M10", "llm", "cross_validation_agent.py", "src/llm/cross_validation_agent.py", "py_module", True),
 
     # ── src/agents/ ──
     TraceItem("A01", "agents", "context.py (SharedContext)", "src/agents/context.py", "py_module", True),

@@ -1,19 +1,22 @@
 """
 Jinja2 报告生成器 — 完整龟龟策略 HTML 分析报告。
 
-包含: HardGate / L2分解 / 公司分类 / OE详情 / PR逐年 / L5外推+陷阱 / 打分总结
+包含: HardGate / L2分解 / 公司分类 / OE详情 / PR逐年 / L5外推+陷阱 / 打分总结 / 交叉验证(v0.25)
 """
 
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, BaseLoader
 
 from src.calculator.turtle_strategy.scoring import FinalScore
+from src.data_pool.bundle import StockDataBundle
 from src.llm.client import LLMConfig
 from src.llm.orchestrator import OrchestrationResult
+from src.llm.cross_validation_agent import CrossValidationResult
 
 
 class ReportGenerator:
@@ -28,6 +31,81 @@ class ReportGenerator:
     def save(self, final_score: FinalScore, path: str, orchestration: OrchestrationResult | None = None) -> str:
         """生成并保存报告到文件。"""
         html = self.generate(final_score, orchestration)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(html)
+        return html
+
+    def generate_brief(self, bundle: StockDataBundle, final_score: FinalScore) -> str:
+        """生成简报 HTML — 含 Tushare 原始数据趋势 + 管线计算推导表。
+
+        Args:
+            bundle: 原始数据载体（含所有 Tushare DataFrame）
+            final_score: 最终打分结果
+
+        Returns:
+            简报 HTML 字符串
+        """
+        from pathlib import Path
+        from src.reporter.brief_builder import BriefBuilder
+
+        # 构建富 context
+        builder = BriefBuilder(bundle, final_score)
+        context = builder.build()
+
+        # 从文件加载模板
+        template_path = Path(__file__).parent / "templates" / "rich_brief.html"
+        if not template_path.exists():
+            raise FileNotFoundError(f"简报模板不存在: {template_path}")
+        env = Environment(loader=BaseLoader())
+        template = env.from_string(template_path.read_text(encoding="utf-8"))
+
+        return template.render(**context)
+
+    def save_brief(self, bundle: StockDataBundle, final_score: FinalScore, path: str) -> str:
+        """生成并保存简报到文件。"""
+        html = self.generate_brief(bundle, final_score)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(html)
+        return html
+
+    def generate_cross_validated(
+        self,
+        final_score: FinalScore,
+        cv_result: CrossValidationResult,
+        financial_insights: Any = None,
+        orchestration: OrchestrationResult | None = None,
+    ) -> str:
+        """生成含交叉验证结论的 HTML 报告。
+
+        Args:
+            final_score: 打分结果
+            cv_result: 交叉验证结果
+            financial_insights: 财报深度分析结果 (FinancialInsights | None)
+            orchestration: Agent 分析结果
+
+        Returns:
+            HTML 字符串
+        """
+        template_path = Path(__file__).parent / "templates" / "cross_validated_report.html"
+        if not template_path.exists():
+            raise FileNotFoundError(f"交叉验证报告模板不存在: {template_path}")
+
+        env = Environment(loader=BaseLoader())
+        template = env.from_string(template_path.read_text(encoding="utf-8"))
+
+        context = self._build_cv_context(final_score, cv_result, financial_insights, orchestration)
+        return template.render(**context)
+
+    def save_cross_validated(
+        self,
+        final_score: FinalScore,
+        cv_result: CrossValidationResult,
+        financial_insights: Any,
+        path: str,
+        orchestration: OrchestrationResult | None = None,
+    ) -> str:
+        """生成并保存交叉验证报告到文件。"""
+        html = self.generate_cross_validated(final_score, cv_result, financial_insights, orchestration)
         with open(path, "w", encoding="utf-8") as f:
             f.write(html)
         return html
@@ -65,7 +143,7 @@ class ReportGenerator:
             "l5_color": "green" if f.l5_score >= 15 else "yellow",
             "l5_safety_margin_pct": l(f.l5_safety_margin_pct, 1),
             "l5_safety_margin_color": "green" if f.l5_safety_margin_pct >= 30 else ("yellow" if f.l5_safety_margin_pct >= 0 else "red"),
-            "l5_reasonable_mv": l(f.l5_reasonable_mv / 1e8, 1) if f.l5_reasonable_mv else "N/A",
+            "l5_reasonable_mv": l(f.l5_reasonable_mv / 1e4, 1) if f.l5_reasonable_mv else "N/A",
             "l5_valuation_score": l(f.l5_valuation_score, 1),
             "l5_downside_score": l(f.l5_downside_score, 1),
             "l5_downside_details": f.l5_downside_details,
@@ -97,6 +175,119 @@ class ReportGenerator:
             "agent_red_flags": orch.analysis.red_flags if (orch and orch.analysis) else [],
             "agent_source": "[本地规则引擎]" if (orch and orch.analysis and not LLMConfig.is_configured()) else "[LLM]",
             "verification_verdict": orch.verification.overall_verdict if (orch and orch.verification) else "",
+        }
+
+    def _build_cv_context(
+        self,
+        f: FinalScore,
+        cv: CrossValidationResult,
+        financial_insights: Any = None,
+        orch: OrchestrationResult | None = None,
+    ) -> dict[str, Any]:
+        """构建交叉验证报告的 Jinja2 context。"""
+        l = lambda v, n: f"{v:.{n}f}"
+        score_color = "var(--green)" if f.final_score >= 75 else ("var(--yellow)" if f.final_score >= 50 else "var(--red)")
+        pool_class = {"核心池": "pool-core", "观察池": "pool-watch"}.get(f.pool, "pool-fallback")
+        l4_color = "green" if f.l4_score >= 22 else ("yellow" if f.l4_score >= 11 else "red")
+        l5_color = "green" if f.l5_score >= 15 else "yellow"
+        pr_color = "green" if f.pr_pct >= 8 else ("yellow" if f.pr_pct >= 5 else "red")
+
+        pr_src_label = "公告承诺" if "tier1" in f.pr_distribution_source else "历史外推"
+        buyback_label = l(f.pr_buyback_cancellation / 1e4, 1) if f.pr_buyback_cancellation else "0"
+
+        discrepancies = []
+        for d in cv.discrepancies:
+            jc = "conflict" if d.judgment == "矛盾" else ("supplement" if d.judgment == "信息补充" else "consistent")
+            discrepancies.append({
+                "dimension": d.dimension,
+                "quantitative_score": d.quantitative_score,
+                "web_evidence": d.evidence or d.web_evidence,
+                "judgment": d.judgment,
+                "judgment_class": jc,
+                "suggestion": d.suggestion,
+                "severity": d.severity,
+            })
+
+        # 财报洞察上下文（用于 HTML 模板展示）
+        fi_ctx = {}
+        if financial_insights is not None:
+            fi_ctx = {
+                "revenue_trend_str": financial_insights.revenue_trend_str,
+                "margin_trend_str": financial_insights.margin_trend_str,
+                "roe_trend_str": financial_insights.roe_trend_str,
+                "cash_quality_str": financial_insights.cash_quality_str,
+                "balance_health_str": financial_insights.balance_health_str,
+                "dividend_policy_str": financial_insights.dividend_policy_str,
+                "efficiency_str": financial_insights.efficiency_str,
+                "growth_stability": financial_insights.growth_stability,
+                "cash_quality": financial_insights.cash_quality,
+                "balance_health": financial_insights.balance_health,
+                "working_capital_efficiency": financial_insights.working_capital_efficiency,
+                "dupont_components": financial_insights.dupont_components if financial_insights.dupont_components else [],
+            }
+        has_fi = bool(fi_ctx)
+
+        # 商业知识上下文
+        bk_ctx = {}
+        if cv.business_knowledge is not None:
+            bk = cv.business_knowledge
+            bk_ctx = {
+                "business_model": bk.business_model,
+                "management": bk.management,
+                "industry_position": bk.industry_position,
+                "risk_regulation": bk.risk_regulation,
+                "dividend_buyback": bk.dividend_buyback,
+                "source": bk.source,
+            }
+        has_bk = bool(bk_ctx)
+
+        return {
+            "name": f.name or f.ts_code,
+            "ts_code": f.ts_code,
+            "final_score": l(f.final_score, 2),
+            "pool": f.pool,
+            "pool_class": pool_class,
+            "score_color": score_color,
+            "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            # 得分概览
+            "l3_score": f.l3_score,
+            "l3_level": f.l3_level,
+            "l3_total_dim": f.l3_total_dim,
+            "l3_bar_pct": int(f.l3_score / 30 * 100) if f.l3_score else 0,
+            "l3_dim_scores": f.l3_dim_scores,
+            "l4_score": f.l4_score,
+            "l4_color": l4_color,
+            "l4_bar_pct": int(f.l4_score / 45 * 100) if f.l4_score else 0,
+            "pr_pct": f.pr_pct,
+            "pr_color": pr_color,
+            "pr_disposable_cash": f.pr_disposable_cash / 1e4 if f.pr_disposable_cash else 0,
+            "pr_distribution_ratio": f.pr_distribution_ratio,
+            "pr_distribution_source_label": pr_src_label,
+            "pr_buyback_cancellation_label": buyback_label,
+            "oe_quality": f.oe_quality,
+            "l5_score": f.l5_score,
+            "l5_color": l5_color,
+            "l5_bar_pct": int(f.l5_score / 25 * 100) if f.l5_score else 0,
+            "l5_safety_margin_pct": f.l5_safety_margin_pct,
+            # 交叉验证
+            "cv_overall_verdict": cv.overall_verdict,
+            "cv_total_checked": cv.total_checked,
+            "cv_consistent_count": cv.consistent_count,
+            "cv_conflict_count": cv.conflict_count,
+            "cv_supplement_count": cv.supplement_count,
+            "cv_suggested_l3_adjustment": cv.suggested_l3_adjustment,
+            "cv_suggested_l4_adjustment": cv.suggested_l4_adjustment,
+            "cv_suggested_l5_adjustment": cv.suggested_l5_adjustment,
+            "cv_discrepancies": discrepancies,
+            "cv_key_findings": cv.key_findings,
+            "cv_red_flags": cv.red_flags,
+            "cv_used_fallback": cv.used_fallback,
+            "cv_error": cv.error if not cv.success else "",
+            # 财报洞察 & 商业知识
+            "has_fi": has_fi,
+            "fi": fi_ctx,
+            "has_bk": has_bk,
+            "bk": bk_ctx,
         }
 
 
@@ -154,7 +345,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
   <h1>{{ name }} <span style="color:var(--text-dim);font-size:0.7em;">{{ ts_code }}</span></h1>
   <div class="score">{{ final_score }}</div>
   <span class="pool-tag {{ pool_class }}">{{ pool }}</span>
-  <div style="margin-top:8px;color:var(--text-dim);font-size:0.85rem;">龟龟投资策略 v0.23 · {{ generated_at }}</div>
+  <div style="margin-top:8px;color:var(--text-dim);font-size:0.85rem;">龟龟投资策略 v0.25 · {{ generated_at }}</div>
 </div>
 
 <!-- ====== 1. HardGate 否决检查 ====== -->
@@ -334,7 +525,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
 </div>
 
 <!-- ====== 7. 管线 ====== -->
-<h2>7. 处理管线 — v0.23</h2>
+<h2>7. 处理管线 — v0.25</h2>
 <div class="pipeline">
   <div class="step step-done">HardGate</div>
   <div class="step step-done">L2门控</div>
@@ -378,7 +569,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
 {% endif %}
 
 <div class="footer">
-  龟龟投资策略框架 v0.23 · 本报告仅供研究参考，不构成投资建议。<br>
+  龟龟投资策略框架 v0.25 · 本报告仅供研究参考，不构成投资建议。<br>
   生成时间: {{ generated_at }}
 </div>
 </body></html>"""

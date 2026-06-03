@@ -17,6 +17,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import pandas as pd
+
+
+def _safe_val(x, default: float = 0.0) -> float:
+    """安全取值：NaN / None / 不可转换 → default，否则 → float。"""
+    try:
+        v = float(x)
+        if pd.isna(v):
+            return default
+        return v
+    except (ValueError, TypeError):
+        return default
+
 
 @dataclass
 class DisposableCashResult:
@@ -165,27 +178,27 @@ class DisposableCashCalculator:
                         cf_row = cf_yearly.iloc[i]
                         end_date = str(cf_row.get("end_date", ""))
 
-                        op_cf = (cf_row.get("n_cashflow_act") or 0) / 1e4  # 元→万元
-                        maintenance_capex = (cf_row.get("c_pay_acq_const_fiolta") or 0) / 1e4
-                        acq_subsidiary = (cf_row.get("c_pay_acq_subsidiary") or 0) / 1e4
+                        op_cf = _safe_val(cf_row.get("n_cashflow_act")) / 1e4  # 元→万元
+                        maintenance_capex = _safe_val(cf_row.get("c_pay_acq_const_fiolta")) / 1e4
+                        acq_subsidiary = _safe_val(cf_row.get("c_pay_acq_subsidiary")) / 1e4
 
                         # 匹配同年度资产负债表
                         bs_row = bs_yearly[bs_yearly["end_date"].astype(str) == end_date]
-                        money_cap = (float(bs_row.iloc[0].get("money_cap") or 0) if not bs_row.empty else 0) / 1e4
-                        st_borr = (float(bs_row.iloc[0].get("st_borrow") or 0) if not bs_row.empty else 0) / 1e4
-                        trad_assets_val = (float(bs_row.iloc[0].get("tradable_fin_assets") or 0) if not bs_row.empty else 0) / 1e4
-                        ltei_current = (float(bs_row.iloc[0].get("long_term_equity_invest") or 0) if not bs_row.empty else 0) / 1e4
+                        money_cap = (_safe_val(bs_row.iloc[0].get("money_cap")) if not bs_row.empty else 0) / 1e4
+                        st_borr = (_safe_val(bs_row.iloc[0].get("st_borr")) if not bs_row.empty else 0) / 1e4
+                        trad_assets_val = (_safe_val(bs_row.iloc[0].get("trad_asset")) if not bs_row.empty else 0) / 1e4
+                        ltei_current = (_safe_val(bs_row.iloc[0].get("long_term_equity_invest")) if not bs_row.empty else 0) / 1e4
 
                         # 参股净增额: 对比上年
                         ltei_prev = 0.0
                         if i + 1 < len(bs_yearly):
                             prev_bs_row = bs_yearly.iloc[i + 1]
-                            ltei_prev = float(prev_bs_row.get("long_term_equity_invest") or 0) / 1e4
+                            ltei_prev = _safe_val(prev_bs_row.get("long_term_equity_invest")) / 1e4
                         equity_invest_increase = max(0.0, ltei_current - ltei_prev)
 
                         # 匹配同年度利润表
                         inc_row = income_yearly[income_yearly["end_date"].astype(str) == end_date]
-                        fin_expense = (float(inc_row.iloc[0].get("fin_expense") or 0) if not inc_row.empty else 0) / 1e4
+                        fin_expense = (_safe_val(inc_row.iloc[0].get("fin_expense")) if not inc_row.empty else 0) / 1e4
 
                         # 限制性货币按当前比例估算历史值
                         restricted_ratio = restricted_cash / max(current.get("money_cap", 1), 1)
@@ -230,27 +243,27 @@ class DisposableCashCalculator:
             cf_row = cf_yearly.iloc[0]
             end_date = str(cf_row.get("end_date", ""))
 
-            op_cf = float(cf_row.get("n_cashflow_act") or 0) / 1e4  # 元→万元
-            maintenance_capex = float(cf_row.get("c_pay_acq_const_fiolta") or 0) / 1e4  # 元→万元
-            acq_subsidiary = float(cf_row.get("c_pay_acq_subsidiary") or 0) / 1e4  # 元→万元
+            op_cf = _safe_val(cf_row.get("n_cashflow_act")) / 1e4  # 元→万元
+            maintenance_capex = _safe_val(cf_row.get("c_pay_acq_const_fiolta")) / 1e4  # 元→万元
+            acq_subsidiary = _safe_val(cf_row.get("c_pay_acq_subsidiary")) / 1e4  # 元→万元
 
             # 资产负债表匹配（当前年度）
             bs_row = bs_yearly[bs_yearly["end_date"].astype(str) == end_date]
-            money_cap = (float(bs_row.iloc[0].get("money_cap") or 0) if not bs_row.empty else 0) / 1e4  # 元→万元
-            st_borr = (float(bs_row.iloc[0].get("st_borrow") or 0) if not bs_row.empty else 0) / 1e4
-            trad_assets = (float(bs_row.iloc[0].get("tradable_fin_assets") or 0) if not bs_row.empty else 0) / 1e4
-            ltei_current = (float(bs_row.iloc[0].get("long_term_equity_invest") or 0) if not bs_row.empty else 0) / 1e4
+            money_cap = (_safe_val(bs_row.iloc[0].get("money_cap")) if not bs_row.empty else 0) / 1e4  # 元→万元
+            st_borr = (_safe_val(bs_row.iloc[0].get("st_borr")) if not bs_row.empty else 0) / 1e4
+            trad_assets = (_safe_val(bs_row.iloc[0].get("trad_asset")) if not bs_row.empty else 0) / 1e4
+            ltei_current = (_safe_val(bs_row.iloc[0].get("long_term_equity_invest")) if not bs_row.empty else 0) / 1e4
 
             # 资产负债表匹配（上一年度，用于参股净增额）
             ltei_prev = 0.0
             if len(bs_yearly) >= 2:
                 bs_row_prev = bs_yearly.iloc[1]
-                ltei_prev = float(bs_row_prev.get("long_term_equity_invest") or 0) / 1e4
+                ltei_prev = _safe_val(bs_row_prev.get("long_term_equity_invest")) / 1e4
             equity_invest_increase = max(0.0, ltei_current - ltei_prev)
 
             # 利润表匹配
             inc_row = income_yearly[income_yearly["end_date"].astype(str) == end_date]
-            fin_expense = (float(inc_row.iloc[0].get("fin_expense") or 0) if not inc_row.empty else 0) / 1e4
+            fin_expense = (_safe_val(inc_row.iloc[0].get("fin_expense")) if not inc_row.empty else 0) / 1e4
 
             return {
                 "op_cf": op_cf,

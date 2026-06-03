@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "stock-analysis-framework"
-version = "0.23.0"
-description = "龟龟投资策略框架 v0.23 — A股选股到报告生成全管线"
+version = "0.26.0"
+description = "龟龟投资策略框架 v0.26 — 修复管线vs财报洞察矛盾率(57%→40%)+取数粒度+单位换算+送转股+NaN防御"
 authors = ["harry <harry@example.com>"]
 readme = "README.md"
 packages = [{ include = "src" }]
@@ -24,7 +24,6 @@ plotly = ">=5.14"
 openai = ">=1.0"
 anthropic = ">=0.20"
 pyarrow = ">=14.0"
-
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.4"
 pytest-cov = ">=4.1"

@@ -41,19 +41,19 @@ def _score(val: float, thresholds: list[tuple[float, float, int]]) -> tuple[int,
 # ══════════════════════════════════════════════════════════════
 
 def _analyze_moat(fs: FinalScore, _profile: dict) -> dict[str, Any]:
-    """护城河深度 — ROE稳定性 + 毛利率稳定性 + L3乘数"""
+    """护城河深度 — ROE稳定性 + 毛利率稳定性 + L3商业模式等级"""
     roe_stab = fs.l5_extrapolation_dims.get("roe_stability", 2)
     margin_stab = fs.l5_extrapolation_dims.get("margin_stability", 2)
-    l3 = fs.l3_multiplier
+    l3_level = fs.l3_level  # v0.23: 优/良/中/差
     oe_quality = fs.oe_quality
 
     # 综合评分
     dim_score = (roe_stab + margin_stab) / 2
-    if l3 >= 1.2 and oe_quality.startswith("🟢"):
+    if l3_level == "优" and oe_quality.startswith("🟢"):
         score = 5
-    elif l3 >= 1.0 and dim_score >= 3:
+    elif l3_level in ("优", "良") and dim_score >= 3:
         score = 4
-    elif l3 >= 0.8:
+    elif l3_level in ("优", "良", "中"):
         score = 3
     elif dim_score >= 2:
         score = 2
@@ -102,12 +102,12 @@ def _analyze_management(fs: FinalScore, _profile: dict) -> dict[str, Any]:
 
 
 def _analyze_industry(fs: FinalScore, _profile: dict) -> dict[str, Any]:
-    """行业格局 — 分类 + 行业可预测性 + L3乘数"""
+    """行业格局 — 分类 + 行业可预测性 + L3商业模式等级"""
     cls = fs.classify_type
     industry_pred = fs.l5_extrapolation_dims.get("industry_predictability", 3)
-    l3 = fs.l3_multiplier
+    l3_level = fs.l3_level  # v0.23: 优/良/中/差
 
-    if cls == "STANDARD_CONSUMER" and l3 >= 1.2:
+    if cls == "STANDARD_CONSUMER" and l3_level == "优":
         score = 5
     elif cls == "STANDARD_CONSUMER" and industry_pred >= 3:
         score = 4
@@ -373,18 +373,20 @@ def run_local_analysis(fs: FinalScore, profile: dict[str, Any] | None = None) ->
     result.module_details = module_details
     result.red_flags = red_flags
 
-    # 商业模式判断
+    # 商业模式判断 (v0.23: 使用 L3 十二维评分替代旧乘数)
     avg = result.qualitative_total / 9
-    l3 = fs.l3_multiplier
-    if avg >= 4.0 and l3 >= 1.2:
+    l3_level = fs.l3_level or "中"  # v0.23: 优/良/中/差
+    l3_score = fs.l3_score
+    l3_dim = fs.l3_total_dim
+    if avg >= 4.0 and l3_level == "优":
         result.business_model = "优"
-        result.business_model_reasoning = f"9模块均分{avg:.1f}/5，L3乘数×{l3:.1f}，商业模式优秀"
+        result.business_model_reasoning = f"9模块均分{avg:.1f}/5，L3十二维{l3_dim:.0f}/24({l3_score:.1f}/30)，商业模式优秀"
     elif avg >= 3.0:
         result.business_model = "良"
-        result.business_model_reasoning = f"9模块均分{avg:.1f}/5，L3乘数×{l3:.1f}，商业模式良好"
+        result.business_model_reasoning = f"9模块均分{avg:.1f}/5，L3十二维{l3_dim:.0f}/24({l3_score:.1f}/30)，商业模式良好"
     elif avg >= 2.0:
         result.business_model = "中"
-        result.business_model_reasoning = f"9模块均分{avg:.1f}/5，L3乘数×{l3:.1f}，商业模式一般"
+        result.business_model_reasoning = f"9模块均分{avg:.1f}/5，L3十二维{l3_dim:.0f}/24({l3_score:.1f}/30)，商业模式一般"
     else:
         result.business_model = "差"
         result.business_model_reasoning = f"9模块均分{avg:.1f}/5，多项指标偏低，商业模式存疑"
