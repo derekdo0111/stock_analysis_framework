@@ -53,6 +53,8 @@ class PRCalculationResult:
     oe_path_b_values: list[float] = field(default_factory=list)
     capex_coefficient: float = 0.0
     oe_quality_label: str = "🟢 可信"
+    oe_to_profit_ratio: float = 0.0       # v0.33: OE_cf/净利润 中位数比
+    bs_unexplained_diff_pct: float = 0.0  # v0.33: BS一致性差异%
 
     # L4 打分
     starting_score: float = 0.0
@@ -121,6 +123,8 @@ class PRCalculator:
         result.oe_path_b_values = list(oe_result.oe_cf_values)
         result.capex_coefficient = oe_result.maintenance_coefficient
         result.oe_quality_label = oe_result.quality_label
+        result.oe_to_profit_ratio = oe_result.oe_to_profit_ratio
+        result.bs_unexplained_diff_pct = oe_result.bs_unexplained_diff_pct
 
         # ── Step 7: 起点分（三级阈值） ──
         result.starting_score = self._compute_starting_score(result.pr_pct)

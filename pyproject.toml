@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "stock-analysis-framework"
-version = "0.27.0"
+version = "0.33.0"
 description = "龟龟投资策略框架 v0.27 — 三阶段LLM统一管线：商业检索(web_search)→分析Agent(full brief.md)→交叉验证(验证分析结论)"
 authors = ["harry <harry@example.com>"]
 readme = "README.md"
@@ -24,6 +24,7 @@ plotly = ">=5.14"
 openai = ">=1.0"
 anthropic = ">=0.20"
 pyarrow = ">=14.0"
+tavily-python = ">=0.3"
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.4"
 pytest-cov = ">=4.1"

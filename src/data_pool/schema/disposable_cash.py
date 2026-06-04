@@ -1,13 +1,14 @@
 """
-可支配现金 — v0.22 PR 公式的核心输入。
+可支配现金 — v0.33 纯流量公式。
 
 真实可支配现金 = 经营CF净额 - 维持性CAPEX - 并购子公司支付的现金 - 参股净增额 - 财务费用
-                + 货币资金 - 限制性货币 - 短期借款 + 交易性金融资产
 
 维持性CAPEX = 购建固定资产、无形资产支付的现金(c_pay_acq_const_fiolta)
 参股净增额 = max(0, 年末长期股权投资 - 年初长期股权投资)
 并购子公司 = c_pay_acq_subsidiary
 
+v0.33: 删除 v0.22 混入的 4 个资产负债表存量项(货币资金/限制性货币/短期借款/交易性金融资产)。
+        money_cap 年末余额已包含当年 op_cf，同时加两者造成双重计数。
 v0.22: 新增扣除并购子公司和参股净增额，将所有成长性投入都减去。
 
 所有数据从 StockDataBundle 读取，计算由 DisposableCashCalculator 执行。
@@ -78,10 +79,6 @@ class DisposableCashResult:
             f" - 并购子公司({parts.get('acq_subsidiary', 0):.0f}万)"
             f" - 参股净增({parts.get('equity_invest_increase', 0):.0f}万)"
             f" - 财务费用({parts.get('fin_expense', 0):.0f}万)"
-            f" + 货币资金({parts.get('money_cap', 0):.0f}万)"
-            f" - 限制性货币({parts.get('restricted', 0):.0f}万)"
-            f" - 短期借款({parts.get('st_borr', 0):.0f}万)"
-            f" + 交易性金融资产({parts.get('trad_assets', 0):.0f}万)"
         )
 
 
@@ -115,17 +112,9 @@ class DisposableCashCalculator:
             # ── 最新一年 ──
             current = self._calc_single_year("latest")
 
-            # 如果没有限制性货币数据，估算为货币资金的 5%（万元）
-            if restricted_cash <= 0 and current:
-                restricted_cash = current.get("money_cap", 0) * 0.05
-                result.source_restricted = "estimated"
-            else:
-                result.source_restricted = "pdf"
-                # restricted_cash 输入可能仍是元，需转换为万元
-                if restricted_cash > 1e10:  # 接近万亿级别说明是元单位
-                    restricted_cash = restricted_cash / 1e4
-
-            result.restricted_cash = restricted_cash
+            # v0.33: 纯流量公式不再使用 restricted_cash (已随 money_cap 一并移除)
+            result.restricted_cash = 0.0
+            result.source_restricted = "n/a (v0.33 pure flow formula)"
 
             dc_current = (
                 current.get("op_cf", 0)
@@ -133,10 +122,6 @@ class DisposableCashCalculator:
                 - current.get("acq_subsidiary", 0)
                 - current.get("equity_invest_increase", 0)
                 - current.get("fin_expense", 0)
-                + current.get("money_cap", 0)
-                - restricted_cash
-                - current.get("st_borr", 0)
-                + current.get("trad_assets", 0)
             )
             result.current = round(dc_current, 2)
 
@@ -150,10 +135,6 @@ class DisposableCashCalculator:
                 "acq_subsidiary": current.get("acq_subsidiary", 0),
                 "equity_invest_increase": current.get("equity_invest_increase", 0),
                 "fin_expense": current.get("fin_expense", 0),
-                "money_cap": current.get("money_cap", 0),
-                "restricted": restricted_cash,
-                "st_borr": current.get("st_borr", 0),
-                "trad_assets": current.get("trad_assets", 0),
             }
 
             # ── 5年历史 ──
@@ -182,11 +163,8 @@ class DisposableCashCalculator:
                         maintenance_capex = _safe_val(cf_row.get("c_pay_acq_const_fiolta")) / 1e4
                         acq_subsidiary = _safe_val(cf_row.get("c_pay_acq_subsidiary")) / 1e4
 
-                        # 匹配同年度资产负债表
+                        # 匹配同年度资产负债表（仅用于参股净增额）
                         bs_row = bs_yearly[bs_yearly["end_date"].astype(str) == end_date]
-                        money_cap = (_safe_val(bs_row.iloc[0].get("money_cap")) if not bs_row.empty else 0) / 1e4
-                        st_borr = (_safe_val(bs_row.iloc[0].get("st_borr")) if not bs_row.empty else 0) / 1e4
-                        trad_assets_val = (_safe_val(bs_row.iloc[0].get("trad_asset")) if not bs_row.empty else 0) / 1e4
                         ltei_current = (_safe_val(bs_row.iloc[0].get("long_term_equity_invest")) if not bs_row.empty else 0) / 1e4
 
                         # 参股净增额: 对比上年
@@ -200,15 +178,9 @@ class DisposableCashCalculator:
                         inc_row = income_yearly[income_yearly["end_date"].astype(str) == end_date]
                         fin_expense = (_safe_val(inc_row.iloc[0].get("fin_expense")) if not inc_row.empty else 0) / 1e4
 
-                        # 限制性货币按当前比例估算历史值
-                        restricted_ratio = restricted_cash / max(current.get("money_cap", 1), 1)
-                        est_restricted = money_cap * restricted_ratio if money_cap > 0 else 0
-
                         dc_year = (
                             op_cf - maintenance_capex - acq_subsidiary
                             - equity_invest_increase - fin_expense
-                            + money_cap - est_restricted
-                            - st_borr + trad_assets_val
                         )
                         historical.append(round(dc_year, 2))
 
@@ -249,9 +221,6 @@ class DisposableCashCalculator:
 
             # 资产负债表匹配（当前年度）
             bs_row = bs_yearly[bs_yearly["end_date"].astype(str) == end_date]
-            money_cap = (_safe_val(bs_row.iloc[0].get("money_cap")) if not bs_row.empty else 0) / 1e4  # 元→万元
-            st_borr = (_safe_val(bs_row.iloc[0].get("st_borr")) if not bs_row.empty else 0) / 1e4
-            trad_assets = (_safe_val(bs_row.iloc[0].get("trad_asset")) if not bs_row.empty else 0) / 1e4
             ltei_current = (_safe_val(bs_row.iloc[0].get("long_term_equity_invest")) if not bs_row.empty else 0) / 1e4
 
             # 资产负债表匹配（上一年度，用于参股净增额）
@@ -273,9 +242,6 @@ class DisposableCashCalculator:
                 "ltei_current": ltei_current,
                 "ltei_prev": ltei_prev,
                 "fin_expense": fin_expense,
-                "money_cap": money_cap,
-                "st_borr": st_borr,
-                "trad_assets": trad_assets,
             }
         except Exception:
             return {}

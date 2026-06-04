@@ -17,6 +17,8 @@ from src.data_pool.bundle import StockDataBundle
 from src.llm.client import LLMConfig
 from src.llm.orchestrator import OrchestrationResult
 from src.llm.cross_validation_agent import CrossValidationResult
+from src.llm.analysis_agent import RootCauseAnalysisResult
+from src.llm.claim_types import ClaimVerificationResult
 
 
 class ReportGenerator:
@@ -74,14 +76,18 @@ class ReportGenerator:
         cv_result: CrossValidationResult,
         financial_insights: Any = None,
         orchestration: OrchestrationResult | None = None,
+        root_cause: RootCauseAnalysisResult | None = None,
+        claim_result: ClaimVerificationResult | None = None,
     ) -> str:
         """生成含交叉验证结论的 HTML 报告。
 
         Args:
             final_score: 打分结果
-            cv_result: 交叉验证结果
+            cv_result: 交叉验证结果 (v0.27 兼容)
             financial_insights: 财报深度分析结果 (FinancialInsights | None)
             orchestration: Agent 分析结果
+            root_cause: v0.29 根因反思结果
+            claim_result: v0.30 逐条核查结果 (优先使用)
 
         Returns:
             HTML 字符串
@@ -93,7 +99,10 @@ class ReportGenerator:
         env = Environment(loader=BaseLoader())
         template = env.from_string(template_path.read_text(encoding="utf-8"))
 
-        context = self._build_cv_context(final_score, cv_result, financial_insights, orchestration)
+        context = self._build_cv_context(
+            final_score, cv_result, financial_insights, orchestration, root_cause,
+            claim_result=claim_result,
+        )
         return template.render(**context)
 
     def save_cross_validated(
@@ -103,9 +112,14 @@ class ReportGenerator:
         financial_insights: Any,
         path: str,
         orchestration: OrchestrationResult | None = None,
+        root_cause: RootCauseAnalysisResult | None = None,
+        claim_result: ClaimVerificationResult | None = None,
     ) -> str:
         """生成并保存交叉验证报告到文件。"""
-        html = self.generate_cross_validated(final_score, cv_result, financial_insights, orchestration)
+        html = self.generate_cross_validated(
+            final_score, cv_result, financial_insights, orchestration, root_cause,
+            claim_result=claim_result,
+        )
         with open(path, "w", encoding="utf-8") as f:
             f.write(html)
         return html
@@ -183,8 +197,13 @@ class ReportGenerator:
         cv: CrossValidationResult,
         financial_insights: Any = None,
         orch: OrchestrationResult | None = None,
+        root_cause: RootCauseAnalysisResult | None = None,
+        claim_result: ClaimVerificationResult | None = None,
     ) -> dict[str, Any]:
-        """构建交叉验证报告的 Jinja2 context。"""
+        """构建交叉验证报告的 Jinja2 context。
+
+        v0.30: 优先使用 claim_result（逐条核查），降级到 cv（全文核查）。
+        """
         l = lambda v, n: f"{v:.{n}f}"
         score_color = "var(--green)" if f.final_score >= 75 else ("var(--yellow)" if f.final_score >= 50 else "var(--red)")
         pool_class = {"核心池": "pool-core", "观察池": "pool-watch"}.get(f.pool, "pool-fallback")
@@ -195,20 +214,75 @@ class ReportGenerator:
         pr_src_label = "公告承诺" if "tier1" in f.pr_distribution_source else "历史外推"
         buyback_label = l(f.pr_buyback_cancellation / 1e4, 1) if f.pr_buyback_cancellation else "0"
 
-        discrepancies = []
-        for d in cv.discrepancies:
-            jc = "conflict" if d.judgment == "矛盾" else ("supplement" if d.judgment == "信息补充" else "consistent")
-            discrepancies.append({
-                "dimension": d.dimension,
-                "quantitative_score": d.quantitative_score,
-                "web_evidence": d.evidence or d.web_evidence,
-                "judgment": d.judgment,
-                "judgment_class": jc,
-                "suggestion": d.suggestion,
-                "severity": d.severity,
-            })
+        # ── v0.30: 优先使用逐条核查结果 ──
+        use_claim = claim_result is not None and claim_result.success and len(claim_result.verified_claims) > 0
 
-        # 财报洞察上下文（用于 HTML 模板展示）
+        if use_claim:
+            # 使用逐条核查数据构造 discrepancy 列表
+            discrepancies = []
+            cv_issues = []
+            for vc in claim_result.verified_claims:
+                item = vc.to_dict()
+                # 添加定量分数字段（兼容旧模板）
+                item["quantitative_score"] = vc.claim_text or ""
+                item["web_evidence"] = vc.evidence or ""
+                discrepancies.append(item)
+                if item["judgment_class"] != "consistent":
+                    cv_issues.append(item)
+
+            cv_total = claim_result.total_claims
+            cv_consistent = claim_result.supported_count
+            cv_conflict = claim_result.conflict_count
+            cv_supplement = claim_result.overstatement_count + claim_result.evidence_lack_count
+            cv_overall = (claim_result.overall_verdict or
+                f"逐条核查 {cv_total} 项" +
+                (f"，✓={cv_consistent}" if cv_consistent else "") +
+                (f"，问题项={cv_conflict + cv_supplement}" if (cv_conflict + cv_supplement) else f"，全部通过"))
+            cv_fallback = False
+            cv_err = ""
+        else:
+            # 降级: 使用旧的 cv_result
+            discrepancies = []
+            cv_issues = []
+            for d in cv.discrepancies:
+                jc = "conflict" if d.judgment == "矛盾" else ("supplement" if d.judgment == "信息补充" else "consistent")
+                if d.judgment.startswith("✓"):
+                    jc = "consistent"
+                elif d.judgment.startswith("⚠"):
+                    jc = "overstatement"
+                elif d.judgment.startswith("✗"):
+                    jc = "conflict"
+                elif d.judgment.startswith("?"):
+                    jc = "evidence_lack"
+                item = {
+                    "dimension": d.dimension,
+                    "quantitative_score": d.quantitative_score,
+                    "web_evidence": d.evidence or getattr(d, 'web_evidence', ''),
+                    "judgment": d.judgment,
+                    "judgment_class": jc,
+                    "suggestion": d.suggestion,
+                    "severity": d.severity,
+                }
+                discrepancies.append(item)
+                if jc != "consistent":
+                    cv_issues.append(item)
+
+            cv_total = cv.total_checked
+            cv_consistent = cv.supported_count
+            cv_conflict = cv.conflict_count
+            cv_supplement = cv.overstatement_count + cv.evidence_lack_count
+            cv_overall = cv.overall_verdict
+            cv_fallback = cv.used_fallback
+            cv_err = cv.error if not cv.success else ""
+
+        # ── v0.30: 修正记录 ──
+        revisions = []
+        if use_claim and claim_result.revised_claims:
+            for rc in claim_result.revised_claims:
+                revisions.append(rc.to_dict())
+        has_revisions = len(revisions) > 0
+
+        # ── 财报洞察上下文 ──
         fi_ctx = {}
         if financial_insights is not None:
             fi_ctx = {
@@ -227,7 +301,7 @@ class ReportGenerator:
             }
         has_fi = bool(fi_ctx)
 
-        # 商业知识上下文 (v0.27: business_knowledge 已移至 brief.md Section 5)
+        # ── 商业知识上下文 ──
         bk_ctx = {}
         if hasattr(cv, 'business_knowledge') and cv.business_knowledge is not None:
             bk = cv.business_knowledge
@@ -241,6 +315,40 @@ class ReportGenerator:
             }
         has_bk = bool(bk_ctx)
 
+        # ── Agent 分析上下文 ──
+        has_agent = orch is not None and orch.analysis is not None
+        agent_total = orch.analysis.qualitative_total if has_agent else 0
+        agent_model = orch.analysis.business_model if has_agent else ""
+        agent_reasoning = orch.analysis.business_model_reasoning if has_agent else ""
+        agent_modules = orch.analysis.module_details if has_agent else []
+        agent_red_flags = orch.analysis.red_flags if has_agent else []
+        agent_full_report = orch.analysis.full_report if has_agent else ""
+        # v0.32: 逐章LLM点评
+        agent_financial_commentary = orch.analysis.financial_insight_commentary if has_agent else ""
+        agent_business_synthesis = orch.analysis.business_knowledge_synthesis if has_agent else ""
+        agent_l3_commentary = orch.analysis.l3_scoring_commentary if has_agent else ""
+        agent_valuation_commentary = orch.analysis.valuation_commentary if has_agent else ""
+
+        # ── v0.29: 根因反思上下文 ──
+        has_rc = root_cause is not None and root_cause.success and len(root_cause.items) > 0
+        # 构建 dimension → RootCauseItem 映射，供模板按维度查找
+        rc_by_dim: dict[str, dict] = {}
+        if has_rc:
+            for item in root_cause.items:
+                rc_by_dim[item.dimension] = {
+                    "dimension": item.dimension,
+                    "root_cause": item.root_cause,
+                    "reasoning": item.reasoning,
+                    "confidence": item.confidence,
+                    "data_fix_suggestion": item.data_fix_suggestion,
+                    "enterprise_insight": item.enterprise_insight,
+                }
+        rc_summary = root_cause.summary if has_rc else ""
+        rc_enterprise_count = root_cause.enterprise_issues_count if has_rc else 0
+        rc_data_count = root_cause.data_quality_issues_count if has_rc else 0
+        rc_method_count = root_cause.methodology_issues_count if has_rc else 0
+        rc_unknown_count = root_cause.insufficient_info_count if has_rc else 0
+
         return {
             "name": f.name or f.ts_code,
             "ts_code": f.ts_code,
@@ -249,15 +357,16 @@ class ReportGenerator:
             "pool_class": pool_class,
             "score_color": score_color,
             "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            # 得分概览
+            # ── 管线摘要 (v0.28) ──
+            "hard_gate_passed": f.hard_gate_passed,
+            "classify_type": f.classify_type,
+            "classify_reason": f.classify_reason,
             "l3_score": f.l3_score,
             "l3_level": f.l3_level,
             "l3_total_dim": f.l3_total_dim,
-            "l3_bar_pct": int(f.l3_score / 30 * 100) if f.l3_score else 0,
             "l3_dim_scores": f.l3_dim_scores,
             "l4_score": f.l4_score,
             "l4_color": l4_color,
-            "l4_bar_pct": int(f.l4_score / 45 * 100) if f.l4_score else 0,
             "pr_pct": f.pr_pct,
             "pr_color": pr_color,
             "pr_disposable_cash": f.pr_disposable_cash / 1e4 if f.pr_disposable_cash else 0,
@@ -267,23 +376,57 @@ class ReportGenerator:
             "oe_quality": f.oe_quality,
             "l5_score": f.l5_score,
             "l5_color": l5_color,
-            "l5_bar_pct": int(f.l5_score / 25 * 100) if f.l5_score else 0,
             "l5_safety_margin_pct": f.l5_safety_margin_pct,
-            # 交叉验证 (v0.27: 字段名更新)
-            "cv_overall_verdict": cv.overall_verdict,
-            "cv_total_checked": cv.total_checked,
-            "cv_consistent_count": cv.supported_count,
-            "cv_conflict_count": cv.conflict_count,
-            "cv_supplement_count": cv.overstatement_count + cv.evidence_lack_count,
-            "cv_suggested_l3_adjustment": 0.0,
-            "cv_suggested_l4_adjustment": 0.0,
-            "cv_suggested_l5_adjustment": 0.0,
+            # ── v0.33: OE 质量四项明细 ──
+            "oe_cv_raw": f.oe_cv,
+            "oe_cagr_raw": f.oe_cagr,
+            "oe_to_profit_ratio_raw": f.oe_to_profit_ratio,
+            "bs_unexplained_diff_pct_raw": f.bs_unexplained_diff_pct,
+            "pr_starting_raw": f.pr_starting_score,
+            "pr_quality_raw": f.pr_quality_penalty,
+            # ── Agent 分析 ──
+            "has_agent": has_agent,
+            "agent_total": agent_total,
+            "agent_model": agent_model,
+            "agent_reasoning": agent_reasoning,
+            "agent_modules": agent_modules,
+            "agent_red_flags": agent_red_flags,
+            "agent_full_report": agent_full_report,
+            # v0.32: 逐章LLM点评
+            "agent_financial_commentary": agent_financial_commentary,
+            "agent_business_synthesis": agent_business_synthesis,
+            "agent_l3_commentary": agent_l3_commentary,
+            "agent_valuation_commentary": agent_valuation_commentary,
+            # ── 交叉验证 ──
+            "cv_overall_verdict": cv_overall,
+            "cv_total_checked": cv_total,
+            "cv_consistent_count": cv_consistent,
+            "cv_conflict_count": cv_conflict,
+            "cv_supplement_count": cv_supplement,
             "cv_discrepancies": discrepancies,
-            "cv_key_findings": cv.key_findings,
-            "cv_red_flags": cv.red_flags,
-            "cv_used_fallback": cv.used_fallback,
-            "cv_error": cv.error if not cv.success else "",
-            # 财报洞察 & 商业知识
+            "cv_issues": cv_issues,  # v0.28: 仅 ⚠/✗/? 问题项
+            "cv_key_findings": cv.key_findings if not use_claim else [],
+            "cv_red_flags": cv.red_flags if not use_claim else [],
+            "cv_used_fallback": cv_fallback,
+            "cv_error": cv_err,
+            # ── v0.30: 逐条核查详情 & 修正记录 ──
+            "use_claims": use_claim,
+            "has_revisions": has_revisions,
+            "revisions": revisions,
+            "claim_stats": {
+                "accepted": claim_result.accepted_count if use_claim else 0,
+                "disputed": claim_result.disputed_count if use_claim else 0,
+                "clarified": claim_result.clarified_count if use_claim else 0,
+            } if use_claim else {},
+            # ── v0.29: 根因反思 ──
+            "has_rc": has_rc,
+            "rc_by_dim": rc_by_dim,
+            "rc_summary": rc_summary,
+            "rc_enterprise_count": rc_enterprise_count,
+            "rc_data_count": rc_data_count,
+            "rc_method_count": rc_method_count,
+            "rc_unknown_count": rc_unknown_count,
+            # ── 财报洞察 & 商业知识 ──
             "has_fi": has_fi,
             "fi": fi_ctx,
             "has_bk": has_bk,
@@ -345,7 +488,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
   <h1>{{ name }} <span style="color:var(--text-dim);font-size:0.7em;">{{ ts_code }}</span></h1>
   <div class="score">{{ final_score }}</div>
   <span class="pool-tag {{ pool_class }}">{{ pool }}</span>
-  <div style="margin-top:8px;color:var(--text-dim);font-size:0.85rem;">龟龟投资策略 v0.27 · {{ generated_at }}</div>
+  <div style="margin-top:8px;color:var(--text-dim);font-size:0.85rem;">龟龟投资策略 v0.32 · {{ generated_at }}</div>
 </div>
 
 <!-- ====== 1. HardGate 否决检查 ====== -->
@@ -417,7 +560,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
     <tr>
       <td>当前可支配现金</td>
       <td>{{ pr_disposable_cash }} 亿</td>
-      <td style="color:var(--text-dim);">经营CF - 维持性CAPEX - 并购子公司 - 参股净增 - 财务费用 + 货币资金 - 限制性货币 - 短期借款 + 交易性金融资产</td>
+      <td style="color:var(--text-dim);">经营CF - 维持性CAPEX - 并购子公司 - 参股净增 - 财务费用 (v0.33 纯流量)</td>
     </tr>
     <tr>
       <td>分配比率</td>
@@ -525,7 +668,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
 </div>
 
 <!-- ====== 7. 管线 ====== -->
-<h2>7. 处理管线 — v0.27</h2>
+<h2>7. 处理管线 — v0.32</h2>
 <div class="pipeline">
   <div class="step step-done">HardGate</div>
   <div class="step step-done">L2门控</div>
@@ -569,7 +712,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
 {% endif %}
 
 <div class="footer">
-  龟龟投资策略框架 v0.27 · 本报告仅供研究参考，不构成投资建议。<br>
+  龟龟投资策略框架 v0.32 · 本报告仅供研究参考，不构成投资建议。<br>
   生成时间: {{ generated_at }}
 </div>
 </body></html>"""

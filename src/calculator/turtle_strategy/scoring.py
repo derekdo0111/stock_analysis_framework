@@ -89,6 +89,8 @@ class FinalScore:
     pr_starting_score: float = 0.0
     pr_quality_penalty: float = 0.0
     capex_coefficient: float = 0.0
+    oe_to_profit_ratio: float = 0.0       # v0.33: OE_cf/净利润 中位数比
+    bs_unexplained_diff_pct: float = 0.0  # v0.33: BS一致性差异%
 
 
 class TurtleScorer:
@@ -195,6 +197,8 @@ class TurtleScorer:
         result.oe_cagr = pr.oe_cagr
         result.oe_path_b_values = list(pr.oe_path_b_values) if pr.oe_path_b_values else []
         result.capex_coefficient = pr.capex_coefficient
+        result.oe_to_profit_ratio = pr.oe_to_profit_ratio
+        result.bs_unexplained_diff_pct = pr.bs_unexplained_diff_pct
         if not pr.is_valid:
             result.l4_score = 0.0
 

@@ -1,5 +1,61 @@
 # Changelog
 
+## [v0.33] - 2026-06-04 — DC 公式纯流量修正 + OE 质检卡片嵌入 L4
+
+### Fixed
+- **DC 公式删除存量项**: `money_cap` + `trad_assets` - `restricted_cash` - `st_borr` 四个资产负债表存量项从可支配现金公式中移除，回归纯流量公式
+  - 根因: `money_cap`(年末货币资金) 已包含当年经营现金流 `op_cf`，再加一遍造成双重计数
+  - 格力电器修正: DC 1131亿→约450亿, PR 25.18%→约10%, L5合理市值 7958亿→合理区间
+- **L5 安全边际** 因 DC 修正而同时回归合理区间（L5 内部调用同一 DisposableCashCalculator）
+
+### Changed
+- **OE 质检卡片嵌入 Section 7**: 在 L4 穿透回报率 & 估值解读区块，PR 表下方新增 OE 质量警告卡片（仅非🟢时显示）
+  - 四项质检明细: OE_cf/净利润、OE稳定性(CV)、OE趋势(3yr CAGR)、BS一致性
+  - 扣分明细: 起点分 - 质检扣 - 存疑折扣 = L4 得分
+- **brief_md L4 section**: OE 质量标签下方展开四项质检明细
+
+### Files
+- `src/data_pool/schema/disposable_cash.py` — 删除 `_calc_single_year` / `calculate` / `formula_parts` / `formula_str` 中 4 个存量项
+- `src/calculator/turtle_strategy/pr_calculator.py` — PRCalculationResult +2字段(oe_to_profit_ratio, bs_unexplained_diff_pct)
+- `src/calculator/turtle_strategy/scoring.py` — FinalScore +2字段 + 从PR结果赋值
+- `src/reporter/report_generator.py` — _build_cv_context +6模板变量(oe_cv/oe_cagr/oe_to_profit_ratio/bs_unexplained_diff_pct/pr_starting_score/pr_quality_penalty)
+- `src/reporter/templates/cross_validated_report.html` — Section 7 新增 OE 质量警告卡片
+- `src/reporter/brief_md_builder.py` — L4 OE 四项质检展开 + 单位 bug 修复
+- `pyproject.toml`, `CHANGELOG.md`, `PROJECT_STATUS.md`, `MEMORY.md`
+
+---
+
+## [v0.32] - 2026-06-04 — 报告分析主导：full_report展示 + 4段逐章LLM点评 + CV收口
+
+### Added
+- **分析Agent 4段逐章点评**: `financial_insight_commentary`(财报7模块综合解读)、`business_knowledge_synthesis`(商业知识综合判断)、`l3_scoring_commentary`(十二维打分模式点评)、`valuation_commentary`(PR+安全边际估值解读)，每段≤1000字
+- **full_report 完整渲染**: 原先生成后被丢弃的完整叙述性分析报告，现作为 Section 2 完整展示
+- **CV 全通过时紧凑模式**: 全部声明核查通过时，Section 8 仅显示 1 条绿色横幅「✓ 全部 N 项声明源数据可支撑」，不展示逐条详情
+
+### Changed
+- **extract_claims 强化合并**: 每9模块维度仅提取1条概括声明，上限从 ~25 条收紧至 9-12 条
+- **brief_md 截断放宽**: `_build_user_message` 截断从 14000 → 30000，让分析 Agent 看到更完整的数据底稿
+- **CV 问题展示收缩**: 只展示 ⚠/✗/? 问题项，不展示 ✓ 通过项
+- **全通过时跳过 Phase 5b.5**: `cli.py` 若 `conflict+overstatement+lack==0` 则不再调用 `revise_with_cv_feedback`
+
+### Fixed
+- **claim 重复匹配 bug**: 模板中 `rev.dimension == vc.dimension` 改为 `rev.claim_id == vc.claim_id` 精确匹配，消除 1 条声明挂 3+ 个修正回复的问题
+- **冗余回炉响应**: 全部通过时不再显示"↳ ✅ 接受修正"
+
+### Design
+- **分析:校验比例反转**: 报告视觉权重从 ~15:85 反转为 ~85:15
+- **新报告结构**: 管线摘要 → full_report 完整叙述(Section 2) → 9模块卡片 → 财报洞察+点评 → 商业知识+综合判断 → L3+模式点评 → L4+估值解读 → CV附注(仅问题项/全通过时1条横幅)
+- **4段点评不设上限、只设靶心(≤1000字)**：让 LLM 深度发挥，确保每段至少给出核心洞察而非敷衍数十字
+
+### Files
+- `src/llm/analysis_agent.py` — 新增 4 字段输出 schema + extract_claims prompt 合并强化 + brief_md 截断放宽
+- `src/reporter/report_generator.py` — `_build_cv_context` 新增 `agent_full_report` + 4 个 commentary
+- `src/reporter/templates/cross_validated_report.html` — 报告重构 + 修复 claim 重复匹配 + CV 收口
+- `src/cli.py` — 全通过时跳过 Phase 5b.5
+- `pyproject.toml`, `CHANGELOG.md`, `PROJECT_STATUS.md`, `.codebuddy/memory/MEMORY.md`
+
+---
+
 ## [v0.27] - 2026-06-04 — 三阶段LLM统一管线：商业检索 → 分析Agent → 交叉验证
 
 ### Added

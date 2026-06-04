@@ -309,7 +309,26 @@ class BriefMDBuilder:
         lines.append(f"- 分配比率来源: {self._f.pr_distribution_source}")
         lines.append(f"- 回购注销: {self._f.pr_buyback_cancellation / 1e4:.1f} 亿元" if self._f.pr_buyback_cancellation else "- 回购注销: 0")
         lines.append(f"- OE 质量标签: {self._f.oe_quality}")
-        lines.append(f"- OE_cf 中位数: {self._f.oe_cf_median / 1e4:.1f} 亿元" if self._f.oe_cf_median else "- OE_cf 中位数: N/A")
+        if self._f.oe_quality != "🟢 可信":
+            # v0.33: 展开四项质检明细
+            o2p = self._f.oe_to_profit_ratio
+            cv = self._f.oe_cv
+            cagr = self._f.oe_cagr
+            bs_diff = self._f.bs_unexplained_diff_pct
+            lines.append(f"  - OE_cf/净利润: {o2p:.2f} ({'≥0.8 ✓' if o2p >= 0.8 else ('≥0.5 ⚠存疑' if o2p >= 0.5 else '<0.5 ✗不可靠')})")
+            lines.append(f"  - OE 稳定性 CV: {cv:.2f} ({'≤0.3 ✓' if cv <= 0.3 else ('≤0.5 ⚠偏高' if cv <= 0.5 else '>0.5 ✗不可靠')})")
+            lines.append(f"  - OE 趋势 3yr CAGR: {cagr*100:.1f}% ({'✓ 增长' if cagr >= 0 else '⚠ 下滑'})")
+            lines.append(f"  - BS 一致性: {bs_diff:.1f}% ({'✓ 正常' if bs_diff <= 30 else '⚠ 差异大'})")
+            start = self._f.pr_starting_score
+            penalty = self._f.pr_quality_penalty
+            if "存疑" in self._f.oe_quality:
+                discount = start * 0.3
+                l4_internal = max(0, start - penalty - discount)
+                lines.append(f"  - 扣分: 起点{start:.0f} - 质检{penalty:.0f} - 存疑×0.30({discount:.1f}) = {l4_internal:.1f} → 缩放{self._f.l4_score:.1f}")
+            else:
+                lines.append(f"  - 扣分: 起点{start:.0f} - 质检{penalty:.0f} = L4 {self._f.l4_score:.1f}")
+        # v0.33 fix: oe_cf_median 原始单位是元，/1e8 才是亿元
+        lines.append(f"- OE_cf 中位数: {self._f.oe_cf_median / 1e8:.1f} 亿元" if self._f.oe_cf_median else "- OE_cf 中位数: N/A")
         lines.append("")
         lines.append("**PR 公式展开**:")
         lines.append(f"PR = (可支配现金 × 分配比率 + 回购注销) / 当前市值")

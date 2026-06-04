@@ -46,7 +46,11 @@ class L2Screener:
 
         # ── 拉取数据 ──
         try:
-            fi = self._bundle.fina_indicator.head(1)
+            fi_all = self._bundle.fina_indicator
+            # 优先取最新年报数据，避免季报ROE被误判为不合格
+            fi = fi_all[fi_all["end_date"].astype(str).str.endswith("1231")].head(1)
+            if fi.empty:
+                fi = fi_all.head(1)
             db = self._bundle.daily_basic.head(1)
         except Exception as e:
             logger.error(f"L2数据拉取失败 {ts_code}: {e}")

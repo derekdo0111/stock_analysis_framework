@@ -200,13 +200,19 @@ class DataPoolOrchestrator:
         except Exception:
             pass
 
+        # daily (OHLCV) 可能需要更高权限，缺失时用空 DataFrame 降级
+        try:
+            daily_df = self._load_df(ts_code, "daily")
+        except (FileNotFoundError, OSError):
+            daily_df = pd.DataFrame()
+
         return StockDataBundle(
             ts_code=ts_code,
             name=name,
             industry=industry,
             stock_basic=basic_df,
             fina_audit=self._load_df(ts_code, "audit"),
-            daily=self._load_df(ts_code, "daily"),
+            daily=daily_df,
             daily_basic=self._load_df(ts_code, "daily_basic"),
             fina_indicator=self._load_df(ts_code, "fina_indicator"),
             income=self._load_df(ts_code, "income"),

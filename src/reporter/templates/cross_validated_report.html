@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>龟龟策略交叉验证报告 — {{ name }} ({{ ts_code }})</title>
+<title>龟龟策略分析报告 — {{ name }} ({{ ts_code }})</title>
 <style>
   :root {
     --bg:#0d1117; --card:#161b22; --border:#30363d; --text:#c9d1d9;
@@ -52,53 +52,188 @@
   .bar-fill.yellow { background:var(--yellow); }
   .bar-fill.red { background:var(--red); }
 
-  /* ── 交叉验证专用样式 ── */
-  .cv-verdict {
-    padding:16px 20px; border-radius:10px; margin:16px 0;
-    font-weight:600; font-size:1.1rem;
+  /* ── 管线摘要 ── */
+  .pipeline-summary {
+    display:grid; grid-template-columns:repeat(4, 1fr); gap:12px;
+    text-align:center;
   }
-  .cv-consistent { background:#1a3a2a; border-left:4px solid var(--green); }
-  .cv-mixed { background:#3a2a0a; border-left:4px solid var(--yellow); }
-  .cv-warning { background:#3a0a0a; border-left:4px solid var(--red); }
+  .ps-item {
+    background:var(--bg); padding:14px 10px; border-radius:8px;
+    border:1px solid var(--border);
+  }
+  .ps-label { font-size:0.78rem; color:var(--text-dim); margin-bottom:4px; }
+  .ps-score { font-size:1.5rem; font-weight:700; }
+  .ps-max { font-size:0.7rem; color:var(--text-dim); font-weight:400; }
+  .ps-sub { font-size:0.72rem; color:var(--text-dim); }
+  .ps-final {
+    background:rgba(88,166,255,0.08); border:1px solid var(--accent);
+  }
+  .ps-meta {
+    margin-top:14px; padding-top:10px; border-top:1px solid var(--border);
+    font-size:0.82rem; color:var(--text-dim); display:flex; gap:16px; flex-wrap:wrap;
+  }
 
-  .discrepancy-card {
-    background:var(--card); border:1px solid var(--border);
+  /* ── 完整分析报告 ── */
+  .full-report-body {
+    font-size:0.92rem; line-height:2.0; color:var(--text);
+    white-space:pre-wrap; word-break:break-word;
+  }
+  .full-report-body h2, .full-report-body h3, .full-report-body h4 {
+    border-bottom:none; margin:24px 0 10px; padding-bottom:4px;
+  }
+  .full-report-body ul, .full-report-body ol { padding-left:24px; margin:8px 0; }
+  .full-report-body li { margin:4px 0; }
+
+  /* ── Agent 模块 ── */
+  .agent-module {
+    background:var(--bg); border-radius:8px; padding:14px; margin-bottom:10px;
+    border:1px solid var(--border);
+  }
+  .agent-module h4 {
+    font-size:0.92rem; margin:0 0 6px; color:var(--text);
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .agent-module .evidence {
+    font-size:0.82rem; color:var(--text-dim); white-space:pre-line; line-height:1.7;
+  }
+  .agent-module .uncertainty {
+    font-size:0.78rem; color:var(--yellow); margin-top:8px;
+    padding:8px; background:#3a2a0a; border-radius:6px;
+  }
+  .confidence-tag {
+    font-size:0.72rem; padding:2px 8px; border-radius:4px; font-weight:500;
+  }
+  .confidence-tag.high { background:#1a3a2a; color:var(--green); }
+  .confidence-tag.medium { background:#3a2a0a; color:var(--yellow); }
+  .confidence-tag.low { background:#3a0a0a; color:var(--red); }
+
+  /* ── 分析师点评卡片 ── */
+  .commentary-card {
+    background:rgba(88,166,255,0.05); border:1px solid rgba(88,166,255,0.2);
     border-radius:8px; padding:16px; margin:12px 0;
+    font-size:0.88rem; line-height:1.9; color:var(--text);
+  }
+  .commentary-card::before {
+    content:"💡 分析师点评";
+    display:block; font-size:0.82rem; font-weight:600;
+    color:var(--accent); margin-bottom:8px;
+  }
+
+  /* ── 交叉验证附注 ── */
+  .cv-verdict {
+    padding:14px 18px; border-radius:8px; margin:16px 0;
+    font-size:0.9rem; line-height:1.6;
+  }
+  .cv-consistent { background:#1a3a2a; border-left:4px solid var(--green); color:var(--green); }
+  .cv-mixed { background:#3a2a0a; border-left:4px solid var(--yellow); color:var(--yellow); }
+  .cv-warning { background:#3a0a0a; border-left:4px solid var(--red); color:var(--red); }
+
+  .cv-stats { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:16px; }
+  .cv-stat-box {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:8px; padding:14px; text-align:center;
+  }
+  .cv-stat-box .num { font-size:1.8rem; font-weight:700; }
+  .cv-stat-box .lbl { font-size:0.78rem; color:var(--text-dim); }
+
+  .cv-ok-bar {
+    padding:12px 16px; border-radius:8px; margin-bottom:16px;
+    background:#1a3a2a; border-left:4px solid var(--green);
+    font-size:0.85rem; color:var(--green);
+  }
+
+  .issue-card {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:8px; padding:14px; margin:8px 0;
     border-left-width:4px;
   }
-  .discrepancy-card.conflict { border-left-color:var(--red); }
-  .discrepancy-card.supplement { border-left-color:var(--accent); }
-  .discrepancy-card.consistent { border-left-color:var(--green); }
-
-  .disc-header {
+  .issue-card.overstatement { border-left-color:var(--yellow); }
+  .issue-card.conflict { border-left-color:var(--red); }
+  .issue-card.evidence_lack { border-left-color:var(--accent); }
+  .issue-header {
     display:flex; justify-content:space-between; align-items:center;
-    margin-bottom:8px;
+    margin-bottom:6px;
   }
-  .disc-dim { font-weight:600; color:var(--accent); }
-  .disc-judgment {
-    padding:2px 10px; border-radius:4px; font-size:0.78rem;
-    font-weight:600;
+  .issue-dim { font-weight:600; font-size:0.9rem; }
+  .issue-tag {
+    padding:2px 8px; border-radius:4px; font-size:0.75rem; font-weight:600;
   }
-  .disc-judgment.conflict { background:#3a0a0a; color:var(--red); }
-  .disc-judgment.supplement { background:#1a1a3a; color:var(--accent); }
-  .disc-judgment.consistent { background:#1a3a2a; color:var(--green); }
-
-  .disc-body { font-size:0.85rem; line-height:1.6; }
-  .disc-label { color:var(--text-dim); font-size:0.78rem; }
-
-  .adjusted-score {
-    display:inline-flex; align-items:center; gap:8px;
-    padding:8px 16px; border-radius:8px; margin:8px 8px 8px 0;
-    font-weight:600;
-  }
-  .adjusted-score.positive { background:#1a3a2a; color:var(--green); }
-  .adjusted-score.negative { background:#3a0a0a; color:var(--red); }
+  .issue-tag.overstatement { background:#3a2a0a; color:var(--yellow); }
+  .issue-tag.conflict { background:#3a0a0a; color:var(--red); }
+  .issue-tag.evidence_lack { background:#1a1a3a; color:var(--accent); }
+  .issue-tag.consistent { background:#1a3a2a; color:var(--green); }
+  .issue-body { font-size:0.82rem; line-height:1.6; color:var(--text-dim); }
 
   .flag { padding:10px 14px; border-radius:6px; margin:4px 0; font-size:0.85rem; }
   .flag-warn { background:#3a0a0a; border-left:3px solid var(--red); }
   .flag-info { background:#1a1a3a; border-left:3px solid var(--accent); }
 
+  /* ── 根因反思 ── */
+  .rc-section {
+    margin-top:12px; padding:10px 12px;
+    background:rgba(88,166,255,0.04); border:1px solid rgba(88,166,255,0.2);
+    border-radius:6px; font-size:0.82rem;
+  }
+  .rc-header {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:6px;
+  }
+  .rc-label { color:var(--accent); font-weight:600; font-size:0.8rem; }
+  .rc-tag {
+    padding:2px 8px; border-radius:4px; font-size:0.72rem; font-weight:600;
+  }
+  .rc-tag.enterprise { background:#3a0a0a; color:var(--red); }
+  .rc-tag.data { background:#3a2a0a; color:var(--yellow); }
+  .rc-tag.methodology { background:#1a1a3a; color:var(--accent); }
+  .rc-tag.unknown { background:#2a2a3a; color:var(--text-dim); }
+  .rc-reasoning {
+    color:var(--text-dim); line-height:1.6; margin-bottom:8px;
+    padding-left:8px; border-left:2px solid var(--border);
+  }
+  .rc-insight {
+    background:rgba(63,185,80,0.06); border:1px solid rgba(63,185,80,0.2);
+    border-radius:4px; padding:8px 10px; margin:6px 0;
+    font-size:0.8rem; color:var(--green); line-height:1.5;
+  }
+  .rc-insight .insight-label { font-weight:600; font-size:0.75rem; }
+  .rc-fix {
+    font-size:0.78rem; color:var(--yellow); margin-top:4px;
+  }
+  .rc-summary-box {
+    background:rgba(88,166,255,0.06); border:1px solid rgba(88,166,255,0.2);
+    border-radius:8px; padding:12px 16px; margin-top:16px;
+    font-size:0.85rem; color:var(--accent); line-height:1.6;
+  }
+  .rc-stats-mini {
+    display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px;
+    font-size:0.78rem;
+  }
+  .rc-stats-mini span {
+    padding:3px 10px; border-radius:4px;
+  }
+  .rc-stat-ent { background:#3a0a0a; color:var(--red); }
+  .rc-stat-data { background:#3a2a0a; color:var(--yellow); }
+  .rc-stat-meth { background:#1a1a3a; color:var(--accent); }
+  .rc-stat-unk { background:#2a2a3a; color:var(--text-dim); }
+
+  .sep-line {
+    margin:40px 0 4px; border:none; border-top:2px dashed var(--border);
+  }
+
   .footer { text-align:center; color:var(--text-dim); font-size:0.82rem; margin-top:56px; padding-top:24px; border-top:1px solid var(--border); }
+
+  {% if has_agent %}.header .score { font-size:2.8rem; }{% endif %}
+
+  /* v0.32: 修正回应只显示 ⚠/✗/? 问题对应的 */
+  .revision-response {
+    margin-top:8px; padding:10px 12px; border-radius:6px; font-size:0.82rem;
+  }
+  .revision-response.accept { background:#1a3a2a; border:1px solid rgba(63,185,80,0.3); }
+  .revision-response.dispute { background:#3a0a0a; border:1px solid rgba(248,81,73,0.3); }
+  .revision-response.clarify { background:#1a1a3a; border:1px solid rgba(88,166,255,0.3); }
+  .revision-response .resp-label {
+    font-weight:600; margin-bottom:4px;
+  }
 </style>
 </head>
 <body>
@@ -110,162 +245,91 @@
   <h1>{{ name }} <span style="color:var(--text-dim);font-size:0.7em;">{{ ts_code }}</span></h1>
   <div class="score">{{ final_score }}</div>
   <span class="pool-tag {{ pool_class }}">{{ pool }}</span>
-  <div class="meta">龟龟投资策略 v0.25 · 交叉验证报告 · {{ generated_at }}</div>
+  <div class="meta">龟龟投资策略 v0.32 · {{ generated_at }}</div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════ -->
-<!-- 得分概览 -->
+<!-- 1. 管线摘要 -->
 <!-- ══════════════════════════════════════════════════════════════ -->
-<h2>1. 管线得分概览</h2>
-<div class="grid">
-  <div class="card">
-    <h3>L3 商业模式</h3>
-    <div style="font-size:1.6rem;font-weight:700;color:var(--green);">{{ "%.1f"|format(l3_score) }} / 30</div>
-    <div style="color:var(--text-dim);font-size:0.85rem;margin-top:4px;">{{ l3_level }} · 维度分 {{ "%.0f"|format(l3_total_dim) }}/24</div>
-    <div class="bar-wrap" style="margin-top:8px;">
-      <div class="bar-fill green" style="width:{{ l3_bar_pct }}%"></div>
+<h2>1. 管线摘要</h2>
+<div class="card">
+  <div class="pipeline-summary">
+    <div class="ps-item">
+      <div class="ps-label">L3 商业模式</div>
+      <div class="ps-score" style="color:var(--green);">{{ "%.1f"|format(l3_score) }} <span class="ps-max">/30</span></div>
+      <div class="ps-sub">{{ l3_level }} · 维度 {{ "%.0f"|format(l3_total_dim) }}/24</div>
+    </div>
+    <div class="ps-item">
+      <div class="ps-label">L4 穿透回报</div>
+      <div class="ps-score" style="color:{{ l4_color }};">{{ "%.1f"|format(l4_score) }} <span class="ps-max">/45</span></div>
+      <div class="ps-sub">PR={{ "%.2f"|format(pr_pct) }}% · OE {{ oe_quality }}</div>
+    </div>
+    <div class="ps-item">
+      <div class="ps-label">L5 安全边际</div>
+      <div class="ps-score" style="color:{{ l5_color }};">{{ "%.1f"|format(l5_score) }} <span class="ps-max">/25</span></div>
+      <div class="ps-sub">安全边际率={{ "%.1f"|format(l5_safety_margin_pct) }}%</div>
+    </div>
+    <div class="ps-item ps-final">
+      <div class="ps-label">Final</div>
+      <div class="ps-score" style="color:{{ score_color }};">{{ final_score }}</div>
+      <div class="ps-sub">{{ pool }}</div>
     </div>
   </div>
-  <div class="card">
-    <h3>L4 穿透回报率</h3>
-    <div style="font-size:1.6rem;font-weight:700;color:{{ l4_color }};">{{ "%.1f"|format(l4_score) }} / 45</div>
-    <div style="color:var(--text-dim);font-size:0.85rem;margin-top:4px;">PR={{ "%.2f"|format(pr_pct) }}% · OE={{ oe_quality }}</div>
-    <div class="bar-wrap" style="margin-top:8px;">
-      <div class="bar-fill {{ l4_color }}" style="width:{{ l4_bar_pct }}%"></div>
-    </div>
-  </div>
-  <div class="card">
-    <h3>L5 安全边际</h3>
-    <div style="font-size:1.6rem;font-weight:700;color:{{ l5_color }};">{{ "%.1f"|format(l5_score) }} / 25</div>
-    <div style="color:var(--text-dim);font-size:0.85rem;margin-top:4px;">安全边际率={{ "%.1f"|format(l5_safety_margin_pct) }}%</div>
-    <div class="bar-wrap" style="margin-top:8px;">
-      <div class="bar-fill {{ l5_color }}" style="width:{{ l5_bar_pct }}%"></div>
-    </div>
+  <div class="ps-meta">
+    <span>HardGate: {% if hard_gate_passed %}✅ PASS{% else %}❌ VETO{% endif %}</span>
+    <span>分类: {{ classify_type }}</span>
+    {% if classify_reason %}<span>{{ classify_reason }}</span>{% endif %}
   </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════ -->
-<!-- 交叉验证结果 -->
+<!-- 2. Agent 完整分析报告 (v0.32: full_report 完整展示) -->
 <!-- ══════════════════════════════════════════════════════════════ -->
-<h2>2. 交叉验证结论</h2>
-
-{% if cv_error %}
-<div class="card" style="border-left:4px solid var(--red);">
-  <h3 style="color:var(--red);">交叉验证失败</h3>
-  <div style="color:var(--text-dim);">{{ cv_error }}</div>
-</div>
-{% else %}
-
-<!-- 总体结论 -->
-{% set cv_class = "cv-mixed" %}
-{% if cv_conflict_count > 0 %}{% set cv_class = "cv-warning" %}{% endif %}
-{% if cv_conflict_count == 0 and cv_supplement_count > 0 %}{% set cv_class = "cv-mixed" %}{% endif %}
-{% if cv_conflict_count == 0 and cv_supplement_count == 0 %}{% set cv_class = "cv-consistent" %}{% endif %}
-
-<div class="cv-verdict {{ cv_class }}">
-  {{ cv_overall_verdict }}
-  {% if cv_used_fallback %}
-  <span style="font-size:0.8rem;color:var(--text-dim);">(降级规则引擎)</span>
-  {% endif %}
-</div>
-
-<!-- 统计 -->
-<div class="grid">
-  <div class="card" style="text-align:center;">
-    <div style="font-size:2rem;font-weight:700;color:var(--accent);">{{ cv_total_checked }}</div>
-    <div style="color:var(--text-dim);font-size:0.85rem;">检查维度</div>
-  </div>
-  <div class="card" style="text-align:center;">
-    <div style="font-size:2rem;font-weight:700;color:var(--green);">{{ cv_consistent_count }}</div>
-    <div style="color:var(--text-dim);font-size:0.85rem;">一致</div>
-  </div>
-  <div class="card" style="text-align:center;">
-    <div style="font-size:2rem;font-weight:700;color:var(--red);">{{ cv_conflict_count }}</div>
-    <div style="color:var(--text-dim);font-size:0.85rem;">矛盾</div>
-  </div>
-  <div class="card" style="text-align:center;">
-    <div style="font-size:2rem;font-weight:700;color:var(--accent);">{{ cv_supplement_count }}</div>
-    <div style="color:var(--text-dim);font-size:0.85rem;">信息补充</div>
-  </div>
-</div>
-
-<!-- 修正建议 -->
-{% if cv_suggested_l3_adjustment != 0 or cv_suggested_l4_adjustment != 0 or cv_suggested_l5_adjustment != 0 %}
-<h3>建议得分修正</h3>
-<div style="display:flex;flex-wrap:wrap;margin:8px 0 16px;">
-  {% if cv_suggested_l3_adjustment != 0 %}
-  <div class="adjusted-score {% if cv_suggested_l3_adjustment > 0 %}positive{% else %}negative{% endif %}">
-    L3: {% if cv_suggested_l3_adjustment > 0 %}+{% endif %}{{ "%.1f"|format(cv_suggested_l3_adjustment) }}
-    <span style="font-weight:400;color:var(--text-dim);">→ {{ "%.1f"|format(l3_score + cv_suggested_l3_adjustment) }}/30</span>
-  </div>
-  {% endif %}
-  {% if cv_suggested_l4_adjustment != 0 %}
-  <div class="adjusted-score {% if cv_suggested_l4_adjustment > 0 %}positive{% else %}negative{% endif %}">
-    L4: {% if cv_suggested_l4_adjustment > 0 %}+{% endif %}{{ "%.1f"|format(cv_suggested_l4_adjustment) }}
-    <span style="font-weight:400;color:var(--text-dim);">→ {{ "%.1f"|format(l4_score + cv_suggested_l4_adjustment) }}/45</span>
-  </div>
-  {% endif %}
-  {% if cv_suggested_l5_adjustment != 0 %}
-  <div class="adjusted-score {% if cv_suggested_l5_adjustment > 0 %}positive{% else %}negative{% endif %}">
-    L5: {% if cv_suggested_l5_adjustment > 0 %}+{% endif %}{{ "%.1f"|format(cv_suggested_l5_adjustment) }}
-    <span style="font-weight:400;color:var(--text-dim);">→ {{ "%.1f"|format(l5_score + cv_suggested_l5_adjustment) }}/25</span>
-  </div>
-  {% endif %}
+{% if has_agent and agent_full_report %}
+<h2>2. 完整分析报告</h2>
+<div class="card">
+  <div class="full-report-body">{{ agent_full_report }}</div>
 </div>
 {% endif %}
 
-<!-- 逐条不一致记录 -->
-{% if cv_discrepancies %}
-<h3>逐维对比详情</h3>
-{% for d in cv_discrepancies %}
-<div class="discrepancy-card {{ d.judgment_class }}">
-  <div class="disc-header">
-    <span class="disc-dim">{{ d.dimension }}</span>
-    <span class="disc-judgment {{ d.judgment_class }}">{{ d.judgment }}</span>
-  </div>
-  <div class="disc-body">
-    <div style="margin-bottom:4px;">
-      <span class="disc-label">管线得分:</span> {{ d.quantitative_score }}
-    </div>
-    <div style="margin-bottom:4px;">
-      <span class="disc-label">Web 证据:</span> {{ d.web_evidence }}
-    </div>
-    {% if d.suggestion %}
-    <div style="margin-top:6px;padding:8px 12px;background:var(--bg);border-radius:6px;">
-      <span class="disc-label">修正建议:</span>
-      <span style="color:{% if d.judgment_class == 'conflict' %}var(--yellow){% else %}var(--accent){% endif %};">
-        {{ d.suggestion }}
-      </span>
-    </div>
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- 3. Agent 9模块打分卡片 -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+{% if has_agent %}
+<h2>3. Agent 定性分析 — 9模块打分</h2>
+<div class="card" style="grid-column:1/-1; margin-bottom:16px;">
+  <h3>商业模式判断: {{ agent_model }} · 总分 {{ "%.0f"|format(agent_total) }}/45</h3>
+  <div style="font-size:0.85rem;color:var(--text-dim);margin-top:4px;">{{ agent_reasoning }}</div>
+</div>
+
+<div class="grid">
+  {% for m in agent_modules %}
+  <div class="agent-module">
+    <h4>
+      {{ m.module }}: {{ m.score }}/5
+      <span class="confidence-tag {% if m.confidence == 'high' %}high{% elif m.confidence == 'medium' %}medium{% else %}low{% endif %}">{% if m.confidence == 'high' %}高置信{% elif m.confidence == 'medium' %}中置信{% else %}低置信{% endif %}</span>
+    </h4>
+    <div class="evidence">{{ m.evidence }}</div>
+    {% if m.uncertainty %}
+    <div class="uncertainty">⚠ {{ m.uncertainty }}</div>
     {% endif %}
   </div>
+  {% endfor %}
 </div>
-{% endfor %}
-{% endif %}
 
-<!-- 关键发现 -->
-{% if cv_key_findings %}
-<h3>关键发现</h3>
-{% for f in cv_key_findings %}
-<div class="flag flag-info">{{ f }}</div>
-{% endfor %}
-{% endif %}
-
-<!-- 红旗 -->
-{% if cv_red_flags %}
+{% if agent_red_flags %}
 <h3>红旗警告</h3>
-{% for rf in cv_red_flags %}
+{% for rf in agent_red_flags %}
 <div class="flag flag-warn">{{ rf }}</div>
 {% endfor %}
 {% endif %}
-
-{% endif %}  <!-- end cv_error -->
+{% endif %}
 
 <!-- ══════════════════════════════════════════════════════════════ -->
-<!-- 财报深度分析洞察 (v0.25) -->
+<!-- 4. 财报深度分析洞察 + 分析师点评 -->
 <!-- ══════════════════════════════════════════════════════════════ -->
 {% if has_fi %}
-<h2>3. 财报深度分析洞察</h2>
+<h2>4. 财报深度分析洞察</h2>
 <div class="grid">
   <div class="card">
     <h3>模块1: 收入利润趋势</h3>
@@ -308,13 +372,16 @@
     <div style="margin-top:4px;font-size:0.78rem;color:var(--accent);">评级: {{ fi.working_capital_efficiency }}</div>
   </div>
 </div>
+{% if agent_financial_commentary %}
+<div class="commentary-card">{{ agent_financial_commentary }}</div>
+{% endif %}
 {% endif %}
 
 <!-- ══════════════════════════════════════════════════════════════ -->
-<!-- LLM 商业知识 (v0.25) -->
+<!-- 5. LLM 商业知识检索 + 综合分析 -->
 <!-- ══════════════════════════════════════════════════════════════ -->
 {% if has_bk %}
-<h2>4. LLM 商业知识检索</h2>
+<h2>5. LLM 商业知识检索</h2>
 <div style="color:var(--text-dim);font-size:0.82rem;margin-bottom:12px;">数据来源: {{ bk.source }}</div>
 <div class="grid">
   <div class="card">
@@ -338,12 +405,15 @@
     <div style="font-size:0.85rem;color:var(--text);line-height:1.8;">{{ bk.dividend_buyback }}</div>
   </div>
 </div>
+{% if agent_business_synthesis %}
+<div class="commentary-card">{{ agent_business_synthesis }}</div>
+{% endif %}
 {% endif %}
 
 <!-- ══════════════════════════════════════════════════════════════ -->
-<!-- L3 十二维详情 -->
+<!-- 6. L3 商业模式十二维 + 模式点评 -->
 <!-- ══════════════════════════════════════════════════════════════ -->
-<h2>{% if has_fi or has_bk %}5{% else %}3{% endif %}. L3 商业模式十二维</h2>
+<h2>6. L3 商业模式十二维</h2>
 {% if l3_dim_scores %}
 <table>
   <thead>
@@ -361,22 +431,25 @@
     {% endfor %}
   </tbody>
 </table>
+{% if agent_l3_commentary %}
+<div class="commentary-card">{{ agent_l3_commentary }}</div>
+{% endif %}
 {% endif %}
 
 <!-- ══════════════════════════════════════════════════════════════ -->
-<!-- L4 PR 公式展开 -->
+<!-- 7. L4 穿透回报率 + 估值解读 -->
 <!-- ══════════════════════════════════════════════════════════════ -->
-<h2>{% if has_fi or has_bk %}6{% else %}4{% endif %}. L4 穿透回报率公式展开</h2>
+<h2>7. L4 穿透回报率 &amp; 估值解读</h2>
 <div class="card">
   <div style="font-size:0.85rem;color:var(--accent);margin-bottom:12px;">
-    PR = (可支配现金 × 分配比率 + 回购注销) / 当前市值
+    PR = (可支配现金 &times; 分配比率 + 回购注销) / 当前市值
   </div>
   <table>
     <tr><th>组件</th><th>值</th><th>来源</th></tr>
     <tr>
       <td>可支配现金</td>
-      <td>{{ pr_disposable_cash }} 亿</td>
-      <td style="color:var(--text-dim);">经营CF - 维持性CAPEX - 并购 - 参股 + 货币资金 - 短期借款 + 交易性金融资产</td>
+      <td>{{ "%.1f"|format(pr_disposable_cash) }} 亿</td>
+      <td style="color:var(--text-dim);">经营CF - 维持性CAPEX - 并购 - 参股 - 财务费用 (v0.33 纯流量)</td>
     </tr>
     <tr>
       <td>分配比率</td>
@@ -396,11 +469,253 @@
   </table>
 </div>
 
+<!-- v0.33: OE 质量警告卡片 (仅非🟢可信时显示) -->
+{% set oe_quality_has_issue = (oe_quality is defined) and (oe_quality != "🟢 可信") %}
+{% if oe_quality_has_issue %}
+<div class="card" style="border-left:4px solid {{ 'var(--red)' if '不可靠' in oe_quality else 'var(--yellow)' }};">
+  <h3 style="color:{{ 'var(--red)' if '不可靠' in oe_quality else 'var(--yellow)' }};">OE 质量警告: {{ oe_quality }}</h3>
+  <div style="margin-bottom:10px;font-size:0.82rem;color:var(--text-dim);">
+    OE(所有者盈余)是PR起点分的计算依据，质量不可靠时管线自动降低L4得分
+  </div>
+  <table>
+    <tr><th>检查项</th><th>值</th><th>阈值</th><th>状态</th></tr>
+    <tr>
+      <td>OE_cf / 净利润</td>
+      <td>{{ "%.2f"|format(oe_to_profit_ratio_raw) }}</td>
+      <td style="font-size:0.78rem;color:var(--text-dim);">≥0.8 可信 / ≥0.5 存疑 / &lt;0.5 不可靠</td>
+      <td>
+        {% if oe_to_profit_ratio_raw >= 0.8 %}
+        <span style="color:var(--green);">✓ 正常</span>
+        {% elif oe_to_profit_ratio_raw >= 0.5 %}
+        <span style="color:var(--yellow);">⚠ 存疑</span>
+        {% else %}
+        <span style="color:var(--red);">✗ 不可靠</span>
+        {% endif %}
+      </td>
+    </tr>
+    <tr>
+      <td>OE 稳定性 (CV)</td>
+      <td>{{ "%.2f"|format(oe_cv_raw) }}</td>
+      <td style="font-size:0.78rem;color:var(--text-dim);">≤0.3 可信 / ≤0.5 存疑 / >0.5 不可靠</td>
+      <td>
+        {% if oe_cv_raw <= 0.3 %}
+        <span style="color:var(--green);">✓ 稳定</span>
+        {% elif oe_cv_raw <= 0.5 %}
+        <span style="color:var(--yellow);">⚠ 偏高</span>
+        {% else %}
+        <span style="color:var(--red);">✗ 不可靠</span>
+        {% endif %}
+      </td>
+    </tr>
+    <tr>
+      <td>OE 趋势 (3年CAGR)</td>
+      <td>{{ "%.1f"|format(oe_cagr_raw * 100) }}%</td>
+      <td style="font-size:0.78rem;color:var(--text-dim);">≥0 正常 / &lt;0 扣分</td>
+      <td>
+        {% if oe_cagr_raw >= 0 %}
+        <span style="color:var(--green);">✓ 增长</span>
+        {% else %}
+        <span style="color:var(--yellow);">⚠ 下滑</span>
+        {% endif %}
+      </td>
+    </tr>
+    <tr>
+      <td>BS 一致性</td>
+      <td>{{ "%.1f"|format(bs_unexplained_diff_pct_raw) }}%</td>
+      <td style="font-size:0.78rem;color:var(--text-dim);">≤30% 正常 / >30% 扣分</td>
+      <td>
+        {% if bs_unexplained_diff_pct_raw <= 30 %}
+        <span style="color:var(--green);">✓ 正常</span>
+        {% else %}
+        <span style="color:var(--yellow);">⚠ 差异大</span>
+        {% endif %}
+      </td>
+    </tr>
+  </table>
+  <div style="margin-top:10px;padding:10px 14px;background:var(--bg);border-radius:6px;font-size:0.82rem;">
+    <strong>L4 扣分明细:</strong>
+    起点 {{ "%.0f"|format(pr_starting_raw) }}分
+    - 质检扣 {{ "%.0f"|format(pr_quality_raw) }}分
+    {% if '存疑' in oe_quality %}- 存疑折扣(×0.3) = {{ "%.1f"|format(pr_starting_raw * 0.3) }}{% endif %}
+    = L4 {{ "%.1f"|format(l4_score) }}分/45
+  </div>
+</div>
+{% endif %}
+
+{% if agent_valuation_commentary %}
+<div class="commentary-card">{{ agent_valuation_commentary }}</div>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- 8. 交叉验证附注 (v0.32: 全通过→1条绿色横幅，有问题→仅展示问题项) -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<hr class="sep-line">
+<h2>8. 交叉验证附注</h2>
+
+{% if cv_error %}
+<div class="card" style="border-left:4px solid var(--red);">
+  <h3 style="color:var(--red);">交叉验证失败</h3>
+  <div style="color:var(--text-dim);">{{ cv_error }}</div>
+</div>
+{% else %}
+
+<!-- 统计小卡片 -->
+<div class="cv-stats">
+  <div class="cv-stat-box">
+    <div class="num" style="color:var(--accent);">{{ cv_total_checked }}</div>
+    <div class="lbl">核查声明</div>
+  </div>
+  <div class="cv-stat-box">
+    <div class="num" style="color:var(--green);">{{ cv_consistent_count }}</div>
+    <div class="lbl">✓ 一致</div>
+  </div>
+  <div class="cv-stat-box">
+    <div class="num" style="color:{% if cv_conflict_count > 0 %}var(--red){% else %}var(--text-dim){% endif %};">{{ cv_conflict_count }}</div>
+    <div class="lbl">✗ 矛盾</div>
+  </div>
+  <div class="cv-stat-box">
+    <div class="num" style="color:var(--yellow);">{{ cv_supplement_count }}</div>
+    <div class="lbl">⚠/? 问题</div>
+  </div>
+</div>
+
+<!-- v0.32: 全通过 → 1 条绿色横幅，不展示任何逐条详情 -->
+{% if cv_conflict_count == 0 and cv_supplement_count == 0 %}
+<div class="card" style="text-align:center;color:var(--green);border-left:4px solid var(--green);padding:18px;">
+  ✅ 全部 {{ cv_total_checked }} 项声明核查通过 — 分析报告与源数据完全一致
+</div>
+{% else %}
+<!-- 总体结论 -->
+{% set cv_class = "cv-warning" if cv_conflict_count > 0 else "cv-mixed" %}
+<div class="cv-verdict {{ cv_class }}">
+  {{ cv_overall_verdict }}
+  {% if cv_used_fallback %}
+  <span style="font-size:0.8rem;color:var(--text-dim);">(降级规则引擎)</span>
+  {% endif %}
+</div>
+
+<!-- 已通过行 -->
+{% if cv_consistent_count > 0 %}
+<div class="cv-ok-bar">
+  ✓ 已交叉验证 {{ cv_consistent_count }}/{{ cv_total_checked }} 项 — 分析结论与源数据一致
+</div>
+{% endif %}
+
+<!-- 仅展示 ⚠/✗/? 问题项 -->
+{% if cv_issues %}
+{% for d in cv_issues %}
+<div class="issue-card {{ d.judgment_class }}">
+  <div class="issue-header">
+    <span class="issue-dim">{{ d.dimension }}</span>
+    <span class="issue-tag {{ d.judgment_class }}">{{ d.judgment }}</span>
+  </div>
+  <div class="issue-body">
+    {% if d.claim_text or d.quantitative_score %}
+    <div style="margin-bottom:6px;color:var(--text);font-style:italic;">
+      "{{ d.claim_text or d.quantitative_score }}"
+    </div>
+    {% endif %}
+    <div style="margin-bottom:4px;">
+      <strong>源数据证据:</strong> {{ d.web_evidence }}
+    </div>
+    {% if d.suggestion %}
+    <div style="margin-top:4px;padding:6px 10px;background:var(--bg);border-radius:4px;">
+      <strong>修正建议:</strong>
+      <span style="color:{% if d.judgment_class == 'conflict' %}var(--yellow){% else %}var(--accent){% endif %};">
+        {{ d.suggestion }}
+      </span>
+    </div>
+    {% endif %}
+
+    <!-- v0.32: 回炉修正回应 (仅此问题项的修正) -->
+    {% if has_revisions %}
+    {% for rev in revisions %}
+    {% if rev.claim_id and rev.claim_id == d.claim_id %}
+    <div class="revision-response {% if rev.analyst_response == 'accept' %}accept{% elif rev.analyst_response == 'dispute' %}dispute{% else %}clarify{% endif %}">
+      <div class="resp-label" style="color:
+        {% if rev.analyst_response == 'accept' %}var(--green)
+        {% elif rev.analyst_response == 'dispute' %}var(--red)
+        {% else %}var(--accent){% endif %};">
+        ↳ 分析Agent:
+        {% if rev.analyst_response == 'accept' %}✅ 接受修正
+        {% elif rev.analyst_response == 'dispute' %}❌ 反驳
+        {% else %}💡 澄清{% endif %}
+      </div>
+      {% if rev.revised_text %}
+      <div style="color:var(--text);margin-bottom:4px;">{{ rev.revised_text }}</div>
+      {% endif %}
+      {% if rev.rebuttal %}
+      <div style="color:var(--yellow);">反驳理由: {{ rev.rebuttal }}</div>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+
+    <!-- 根因诊断 -->
+    {% if has_rc and rc_by_dim.get(d.dimension) %}
+    {% set rc = rc_by_dim.get(d.dimension) %}
+    <div class="rc-section">
+      <div class="rc-header">
+        <span class="rc-label">🔍 根因诊断</span>
+        <span class="rc-tag {% if '企业' in rc.root_cause %}enterprise{% elif '数据' in rc.root_cause %}data{% elif '规则' in rc.root_cause or '评估' in rc.root_cause %}methodology{% else %}unknown{% endif %}">
+          {{ rc.root_cause }}{% if rc.confidence and rc.confidence != 'medium' %} · {{ rc.confidence }}{% endif %}
+        </span>
+      </div>
+      <div class="rc-reasoning">{{ rc.reasoning }}</div>
+      {% if rc.enterprise_insight %}
+      <div class="rc-insight">
+        <span class="insight-label">企业洞察:</span> {{ rc.enterprise_insight }}
+      </div>
+      {% endif %}
+      {% if rc.data_fix_suggestion %}
+      <div class="rc-fix">📋 需补充: {{ rc.data_fix_suggestion }}</div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+<!-- 根因反思总结 -->
+{% if has_rc and rc_summary %}
+<div class="rc-summary-box">
+  <div class="rc-stats-mini">
+    {% if rc_enterprise_count > 0 %}<span class="rc-stat-ent">企业问题 {{ rc_enterprise_count }}</span>{% endif %}
+    {% if rc_data_count > 0 %}<span class="rc-stat-data">数据质量 {{ rc_data_count }}</span>{% endif %}
+    {% if rc_method_count > 0 %}<span class="rc-stat-meth">评估偏差 {{ rc_method_count }}</span>{% endif %}
+    {% if rc_unknown_count > 0 %}<span class="rc-stat-unk">信息不足 {{ rc_unknown_count }}</span>{% endif %}
+  </div>
+  <strong>根因总结:</strong> {{ rc_summary }}
+</div>
+{% endif %}
+
+{% endif %}  <!-- end cv_issues -->
+{% endif %}  <!-- end 全通过判断 -->
+
+<!-- 关键发现 -->
+{% if cv_key_findings %}
+<h3>关键发现</h3>
+{% for f in cv_key_findings %}
+<div class="flag flag-info">{{ f }}</div>
+{% endfor %}
+{% endif %}
+
+<!-- 红旗 -->
+{% if cv_red_flags %}
+<h3>红旗警告</h3>
+{% for rf in cv_red_flags %}
+<div class="flag flag-warn">{{ rf }}</div>
+{% endfor %}
+{% endif %}
+
+{% endif %}  <!-- end cv_error -->
+
 <!-- ══════════════════════════════════════════════════════════════ -->
 <!-- FOOTER -->
 <!-- ══════════════════════════════════════════════════════════════ -->
 <div class="footer">
-  龟龟投资策略框架 v0.25 · 交叉验证报告 · 本报告仅供研究参考，不构成投资建议。<br>
+  龟龟投资策略框架 v0.32 · 本报告仅供研究参考，不构成投资建议。<br>
   生成时间: {{ generated_at }}
 </div>
 </body></html>
