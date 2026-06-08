@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Optional
 
-from src.calculator.turtle_strategy.scoring import FinalScore
+from src.turtle.calculator.scoring import FinalScore
 
 
 @dataclass

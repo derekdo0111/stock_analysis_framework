@@ -4,10 +4,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.llm.analysis_agent import AnalysisAgent, AnalysisResult
-from src.llm.verification_agent import VerificationAgent, VerificationResult
-from src.llm.orchestrator import AgentOrchestrator
-from src.calculator.turtle_strategy.scoring import FinalScore
+from src.turtle.llm.analysis_agent import AnalysisAgent, AnalysisResult
+from src.turtle.llm.verification_agent import VerificationAgent, VerificationResult
+from src.turtle.llm.orchestrator import AgentOrchestrator
+from src.turtle.calculator.scoring import FinalScore
 
 
 @pytest.fixture
@@ -79,7 +79,7 @@ class TestLLMConfig:
     def test_not_configured_by_default(self):
         import os
         # Should be false unless env vars are set
-        from src.llm.client import LLMConfig
+        from src.core.llm.client import LLMConfig
         has_openai = bool(os.environ.get("OPENAI_API_KEY"))
         has_anthropic = bool(os.environ.get("ANTHROPIC_API_KEY"))
         if not has_openai and not has_anthropic:

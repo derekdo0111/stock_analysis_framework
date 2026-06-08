@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 from pydantic import ValidationError
 
-from src.data_pool.schema.models import (
+from src.core.data.pool.schema.models import (
     AuditOpinion,
     BalanceSheet,
     CashFlowStatement,
@@ -37,8 +37,8 @@ from src.data_pool.schema.models import (
     TradeCalendar,
     ValueTrapResult,
 )
-from src.data_pool.storage.local_storage import LocalStorage
-from src.data_pool.validator.data_validator import DataValidator
+from src.core.data.pool.storage.local_storage import LocalStorage
+from src.core.data.pool.validator.data_validator import DataValidator
 
 
 # ═══════════════════════════════════════════════════════════════

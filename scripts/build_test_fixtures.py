@@ -4,7 +4,7 @@ load_dotenv()
 
 import json
 from pathlib import Path
-from src.data_fetcher.tushare_client import TushareClient
+from src.core.data.tushare_client import TushareClient
 
 client = TushareClient()
 

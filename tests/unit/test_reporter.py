@@ -6,17 +6,17 @@ from datetime import date
 
 import pytest
 
-from src.reporter.report_generator import ReportGenerator
-from src.calculator.turtle_strategy.scoring import FinalScore
-from src.llm.orchestrator import OrchestrationResult
-from src.llm.analysis_agent import AnalysisResult
-from src.llm.verification_agent import VerificationResult
-from src.data_pool.transformer.tushare_transformer import (
+from src.turtle.reporter.report_generator import ReportGenerator
+from src.turtle.calculator.scoring import FinalScore
+from src.turtle.llm.orchestrator import OrchestrationResult
+from src.turtle.llm.analysis_agent import AnalysisResult
+from src.turtle.llm.verification_agent import VerificationResult
+from src.core.data.pool.transformer.tushare_transformer import (
     tushare_row_to_model,
     tushare_df_to_models,
     _parse_date,
 )
-from src.data_pool.schema.models import StockBasic
+from src.core.data.pool.schema.models import StockBasic
 
 
 class TestReportGenerator:

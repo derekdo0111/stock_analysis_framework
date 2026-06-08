@@ -1,5 +1,105 @@
 # Changelog
 
+## [v0.36] - 2026-06-08 — 框架正式命名 Augur + UI 原型
+
+### 品牌
+- **框架正式命名 Augur**: 古罗马占卜官，不靠水晶球靠数据观象推演。品牌独立于龟龟策略（龟龟是框架中一种策略，未来还有趋势、多因子等）
+- 项目管理文件全面更新: pyproject.toml / README / CHANGELOG / PROJECT_STATUS / TRACEABILITY
+
+### Added
+- **三栏 UI 原型** (`prototype.html`，纯静态 HTML，零依赖):
+  - 布局: 策略导航 (220px) | 股票池 Top 30 (300px) | 分析内容 (剩余)
+  - 设计: Stripe Dashboard 暗色主题，CSS 变量体系
+  - 功能: 股票点击切换 / 分池标签过滤 / Tab 切换报告区 / 侧边栏策略切换
+  - 茅台 (600519) 和格力电器 (000651) 完整真实数据:
+    - 源核心数据摘要 (营收/利润/CF/ROE/毛利率/PE/股息率 8指标)
+    - KPI 卡片 (Final/L3/L4/L5/交叉验证/分池)
+    - 管线摘要 (HardGate/L2/L3/L4/L5 完整链)
+    - **AI 分析报告** (L3十二维评分明细表 + 5段LLM商业检索完整内容 + 关键风险)
+    - 交叉验证 (声明显式逐条核查)
+    - 财报深分 (7模块Python计算洞察)
+    - 原始数据 (Tushare原始值)
+  - 其余 28 只: 骨架数据 (排名+名称+代码+占位得分)
+- report-body max-height: 500px → 700px (容纳扩写内容)
+
+### Changed
+- 删除 pipeline 分析进度条 (UI 视觉简化)
+- MEMORY.md 记录命名变更
+
+### Files
+- `prototype.html` — 新文件 (~1150行)
+- `pyproject.toml` — version 0.35→0.36, description 更新
+- `PROJECT_STATUS.md` — v0.36 条目
+- `README.md` — 标题更新为 Augur
+- `TRACEABILITY.md` — 日期更新
+- `.codebuddy/memory/MEMORY.md` — 命名记录
+
+---
+
+## [v0.35] - 2026-06-07 — 多策略架构重构
+
+### 架构变更 (Major)
+- **项目目录全面重构**: 从单一龟龟策略单体 → 多策略插件架构
+  - `src/core/` — 所有策略共用的基础能力层
+    - `core/data/` — Tushare 客户端 + 数据池编排 (合并原 data_fetcher/ + data_pool/)
+    - `core/llm/` — DeepSeek/OpenAI 统一客户端 + 缓存 + 工具 (5 个通用文件)
+    - `core/utils/` — 异常/日志/重试/配置/校验
+  - `src/turtle/` — 龟龟策略完整内聚 (原散落在 calculator/screener/llm/reporter/rules/cli.py)
+    - `turtle/calculator/` — L2-L5 计算引擎 (含 financial_deep_analysis/financial_ratios/unit_converter)
+    - `turtle/screening/` — 全A筛选 (含 run_screener.py)
+    - `turtle/llm/` — 龟龟专属 LLM Agent (8个文件)
+    - `turtle/reporter/` — 报告生成
+    - `turtle/rules/` — YAML 规则 + Pydantic Schema (含 loader/injector/validator)
+    - `turtle/cli.py` — stock-analyze CLI 入口
+  - `src/strategies/` — 策略插件层 (BaseStrategy ABC + 自动发现注册表)
+    - `strategies/base.py` — 策略抽象基类 (screen/analyze/build_report)
+    - `strategies/registry.py` — 策略自动发现 + 注册
+    - `strategies/turtle.py` — 龟龟策略适配器
+
+### 通用 vs 专属重新分类
+- **core/llm/**: client.py / cache.py / tools.py / provider.py / manager.py (5个, 零策略依赖)
+- **turtle/llm/**: analysis_agent / business_retrieval / cross_validation / verification / orchestrator / local_analysis / prompt_builder / claim_types (8个, 依赖 FinalScore)
+- **turtle/rules/**: loader.py / injector.py / validator.py (3个, 均依赖 turtle schemas → 从 core 撤回)
+- **已删除**: `src/llm/schema.py` (死代码, 全项目 0 引用)
+
+### Files
+- 新增: `src/core/` (__init__.py + data/rules/llm/utils 子包)
+- 新增: `src/turtle/` (strategy + calculator/screening/llm/reporter/rules/cli 全部)
+- 新增: `src/strategies/` (base.py + registry.py + turtle.py)
+- 新增: `src/core/data/pool/` (合并原 data_pool/)
+- 删除: `src/data_fetcher/`, `src/data_pool/`, `src/calculator/`, `src/screener/`, `src/reporter/`, `src/rules/`, `src/cli.py`
+- 删除: `src/llm/schema.py`
+- 更新: `pyproject.toml` (version 0.33→0.35, CLI 入口 src.cli:main→src.turtle.cli:main)
+- 更新: 全部 100+ 文件的 import 路径 (批量脚本自动修正)
+
+---
+
+## [v0.34] - 2026-06-04 — L3 管理层稳定性 LLM 后修正
+
+### Added
+- **L3 管理层稳定性后修正**: Phase 3.5 LLM 商业检索后，用 `management_stability_signal` 修正 L3 十二维中「管理层稳定性」维度得分
+  - LLM 输出 stable → 2分, frequent_change → 0分, unclear/data_unavailable → 1分
+  - `FinalScore.adjust_management_stability()` 后修正方法：仅改单维 + 联动 L3 总分 / Final / 分池
+  - 流程: Phase 2 L3(默认1分) → Phase 3.5 LLM 商业检索 → 后修正 → Phase 4 brief.md (用修正后得分)
+  - 不浪费 LLM 调用: HardGate/L2 淘汰的公司不跑 LLM，自然也不修正
+
+### Changed
+- `BusinessKnowledgeResult` +1字段 `management_stability_signal`
+- LLM prompt 输出格式新增 `management_stability_signal` (stable/unclear/frequent_change)
+- `L3Calculator` 构造函数新增 `management_signal` 参数
+- `_eval_management_stability` 从恒返1分 → 读取信号判定 0/1/2 分
+- `FinalScore` +2字段 (`management_stability_adjusted`) +1方法 (`adjust_management_stability`)
+- `cli.py` Phase 3.5 后添加修正逻辑块
+
+### Files
+- `src/llm/business_retrieval_agent.py` — +1字段 + 2处 prompt 更新 + _populate_result 提取
+- `src/calculator/turtle_strategy/l3_calculator.py` — __init__ + management_signal + _eval 重写
+- `src/calculator/turtle_strategy/scoring.py` — FinalScore +2字段 + adjust_management_stability()
+- `src/cli.py` — Phase 3.5 后 L3 修正块
+- `CHANGELOG.md`, `PROJECT_STATUS.md`
+
+---
+
 ## [v0.33] - 2026-06-04 — DC 公式纯流量修正 + OE 质检卡片嵌入 L4
 
 ### Fixed

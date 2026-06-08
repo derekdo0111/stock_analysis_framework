@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Augur v0.36 — UI 原型</title>
+<style>
+/* ============================================================
+   CSS Custom Properties — Stripe-inspired dark theme
+   ============================================================ */
+:root {
+  --bg-app:       #0d1117;
+  --bg-sidebar:   #0a0e14;
+  --bg-card:      #161b22;
+  --bg-hover:     #1c2333;
+  --bg-input:     #0d1117;
+  --border:       #30363d;
+  --border-light: #21262d;
+  --text:         #c9d1d9;
+  --text-dim:     #8b949e;
+  --text-muted:   #6e7681;
+  --accent:       #58a6ff;
+  --accent-hover: #79b8ff;
+  --accent-subtle: rgba(88,166,255,0.12);
+  --green:        #3fb950;
+  --green-subtle: rgba(63,185,80,0.12);
+  --yellow:       #d2991d;
+  --yellow-subtle:rgba(210,153,29,0.12);
+  --red:          #f85149;
+  --red-subtle:   rgba(248,81,73,0.12);
+  --purple:       #a371f7;
+  --pool-core:    #3fb950;
+  --pool-watch:   #d2991d;
+  --pool-alt:     #8b949e;
+  --sidebar-w:    220px;
+  --pool-w:       300px;
+  --radius-sm:    6px;
+  --radius-md:    8px;
+  --radius-lg:    12px;
+  --shadow-card:  0 1px 3px rgba(0,0,0,0.3);
+  --font-mono:    'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+  --font-sans:    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+/* ============================================================
+   Reset & Base
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg-app);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================
+   App Shell — Three-column layout
+   ============================================================ */
+.app-shell {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ---- Sidebar (Column 1) ---- */
+.sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.sidebar-brand {
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--border-light);
+}
+.sidebar-brand .logo { font-size: 15px; font-weight: 700; color: var(--text); }
+.sidebar-brand .version { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+.sidebar-section {
+  padding: 12px 0 4px;
+}
+.sidebar-label {
+  padding: 0 16px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  margin: 1px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-dim);
+  transition: background 0.15s, color 0.15s;
+  font-size: 13px;
+  position: relative;
+}
+.sidebar-item:hover { background: var(--bg-hover); color: var(--text); }
+.sidebar-item.active {
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-weight: 500;
+}
+.sidebar-item .badge {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--bg-hover);
+  color: var(--text-dim);
+}
+.sidebar-item.active .badge { background: rgba(88,166,255,0.2); color: var(--accent); }
+.sidebar-item.disabled { opacity: 0.45; cursor: not-allowed; }
+.sidebar-item.disabled:hover { background: transparent; color: var(--text-dim); }
+.sidebar-spacer { flex: 1; }
+.sidebar-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-light);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.sidebar-footer .status-dot {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  margin-right: 4px; vertical-align: middle;
+}
+.sidebar-footer .status-dot.online { background: var(--green); }
+
+/* ---- Stock Pool (Column 2) ---- */
+.stock-pool {
+  width: var(--pool-w);
+  min-width: var(--pool-w);
+  background: var(--bg-app);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pool-header {
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+.pool-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.pool-filters {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.pool-filter {
+  padding: 3px 9px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  transition: all 0.15s;
+}
+.pool-filter:hover { border-color: var(--text-dim); color: var(--text); }
+.pool-filter.active { background: var(--accent-subtle); border-color: var(--accent); color: var(--accent); }
+.pool-filter.core-filter.active { background: var(--green-subtle); border-color: var(--green); color: var(--green); }
+.pool-filter.watch-filter.active { background: var(--yellow-subtle); border-color: var(--yellow); color: var(--yellow); }
+.pool-list-wrap { flex: 1; overflow-y: auto; }
+.pool-list { list-style: none; }
+.pool-item {
+  padding: 8px 14px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background 0.1s, border-color 0.1s;
+}
+.pool-item:hover { background: var(--bg-hover); }
+.pool-item.selected {
+  background: var(--bg-card);
+  border-left-color: var(--accent);
+}
+.pool-item .stock-rank { font-size: 10px; color: var(--text-muted); width: 18px; display: inline-block; }
+.pool-item .stock-name { font-weight: 500; margin-right: 6px; }
+.pool-item .stock-score { font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
+.pool-item .stock-code { font-size: 10px; color: var(--text-muted); display: block; margin-top: 1px; }
+.pool-item .stock-meta { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.pool-item .pool-tag {
+  font-size: 9px; padding: 1px 6px; border-radius: 3px; font-weight: 500;
+}
+.pool-tag.core { background: var(--green-subtle); color: var(--green); }
+.pool-tag.watch { background: var(--yellow-subtle); color: var(--yellow); }
+.pool-tag.alt { background: var(--bg-hover); color: var(--text-dim); }
+.pool-item .score-bar-wrap {
+  height: 3px; background: var(--bg-hover); border-radius: 2px; margin-top: 4px; overflow: hidden;
+}
+.pool-item .score-bar-fill {
+  height: 100%; border-radius: 2px; transition: width 0.3s;
+}
+.pool-item .score-bar-fill.alt  { background: var(--text-dim); }
+.pool-item .score-bar-fill.watch { background: var(--yellow); }
+.pool-item .score-bar-fill.core { background: var(--green); }
+.pool-footer {
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-light);
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.pool-footer .summary-line { margin-bottom: 4px; }
+.pool-footer .summary-line span { color: var(--text-dim); font-weight: 500; }
+.pool-footer .actions { display: flex; gap: 8px; margin-top: 6px; }
+.pool-footer .btn-sm {
+  padding: 4px 10px;
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.pool-footer .btn-sm:hover { border-color: var(--text-dim); color: var(--text); }
+.pool-footer .btn-sm.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pool-footer .btn-sm.primary:hover { background: var(--accent-hover); }
+
+/* ---- Main Content (Column 3) ---- */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* Top Bar */
+.topbar {
+  height: 48px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-app);
+}
+.topbar .breadcrumb { font-size: 12px; color: var(--text-dim); }
+.topbar .breadcrumb span { color: var(--text); font-weight: 500; }
+.topbar .topbar-right { margin-left: auto; display: flex; gap: 8px; }
+.topbar .btn-ghost {
+  padding: 5px 12px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.topbar .btn-ghost:hover { border-color: var(--text-dim); color: var(--text); }
+
+/* Content Area */
+.content-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+.content-scroll.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+.empty-title { font-size: 16px; color: var(--text-dim); margin-bottom: 6px; }
+.empty-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 20px; }
+.empty-actions { display: flex; gap: 8px; }
+.recent-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-top: 24px; max-width: 600px; width: 100%; }
+.recent-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.recent-card:hover { border-color: var(--accent); }
+.recent-card .rc-name { font-weight: 500; font-size: 13px; }
+.recent-card .rc-score { font-family: var(--font-mono); font-size: 18px; font-weight: 700; margin: 4px 0; }
+.recent-card .rc-meta { font-size: 10px; color: var(--text-muted); }
+
+/* Data overview (KPI + Summary) */
+.data-overview {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+/* Source Data Summary Card */
+.summary-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+.summary-card .card-title {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 12px;
+}
+.summary-meta {
+  font-size: 11px; color: var(--text-muted); margin-bottom: 12px;
+  display: flex; gap: 16px; flex-wrap: wrap;
+}
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.summary-item {
+  background: var(--bg-app);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+.summary-item .si-label { font-size: 10px; color: var(--text-muted); margin-bottom: 3px; }
+.summary-item .si-value { font-family: var(--font-mono); font-size: 15px; font-weight: 600; }
+.summary-item .si-sub { font-size: 10px; color: var(--text-dim); margin-top: 1px; }
+.si-sub.up { color: var(--green); }
+.si-sub.down { color: var(--red); }
+.si-sub.neutral { color: var(--text-dim); }
+.summary-divider {
+  margin-top: 12px; padding-top: 10px;
+  border-top: 1px solid var(--border-light);
+  font-size: 11px; color: var(--text-dim);
+  display: flex; gap: 20px;
+}
+.summary-divider span { color: var(--text-muted); }
+.summary-divider .val { font-weight: 500; color: var(--text-dim); }
+
+/* KPI Cards */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto auto;
+  gap: 8px;
+  align-content: start;
+}
+.kpi-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+}
+.kpi-card .kpi-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+.kpi-card .kpi-value { font-family: var(--font-mono); font-size: 22px; font-weight: 700; line-height: 1.1; }
+.kpi-card .kpi-sub { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+.kpi-bar-wrap { height: 3px; background: var(--bg-app); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+.kpi-bar-fill { height: 100%; border-radius: 2px; }
+.kpi-bar-fill.green { background: var(--green); }
+.kpi-bar-fill.yellow { background: var(--yellow); }
+.kpi-bar-fill.red { background: var(--red); }
+.kpi-bar-fill.accent { background: var(--accent); }
+.kpi-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 600;
+  margin-top: 4px; align-self: flex-start;
+}
+.kpi-badge.green { background: var(--green-subtle); color: var(--green); }
+.kpi-badge.yellow { background: var(--yellow-subtle); color: var(--yellow); }
+.kpi-badge.red { background: var(--red-subtle); color: var(--red); }
+
+/* Report Tabs */
+.report-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.report-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.report-tab {
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+  white-space: nowrap;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+}
+.report-tab:hover { color: var(--text); }
+.report-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.report-body {
+  padding: 20px;
+  max-height: 700px;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.report-body h2 { font-size: 16px; margin-bottom: 12px; color: var(--text); }
+.report-body h3 { font-size: 14px; margin: 16px 0 8px; color: var(--text-dim); }
+.report-body p { margin-bottom: 8px; color: var(--text-dim); }
+.report-body strong { color: var(--text); }
+.report-body .highlight-box {
+  background: var(--bg-app);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  margin: 10px 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.report-body .tag-ok { color: var(--green); }
+.report-body .tag-warn { color: var(--yellow); }
+.report-body .tag-issue { color: var(--red); }
+.report-body .tag-info { color: var(--accent); }
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  .data-overview { grid-template-columns: 1fr; }
+  .kpi-grid { grid-template-columns: repeat(3,1fr); grid-template-rows: auto auto; }
+}
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ========== COLUMN 1: Strategy Sidebar ========== -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo">🔮 Augur</div>
+      <div class="version">v0.36 · Stock Analysis Framework</div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">策略</div>
+      <div class="sidebar-item active" data-strategy="turtle">
+        <span>龟龟策略</span>
+        <span class="badge">30</span>
+      </div>
+      <div class="sidebar-item disabled" data-strategy="trend">
+        <span>趋势策略</span>
+      </div>
+      <div class="sidebar-item disabled" data-strategy="multi">
+        <span>多因子策略</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">工具</div>
+      <div class="sidebar-item" data-nav="screener">
+        <span>全A筛选</span>
+      </div>
+      <div class="sidebar-item" data-nav="settings">
+        <span>策略管理</span>
+      </div>
+    </div>
+
+    <div class="sidebar-spacer"></div>
+
+    <div class="sidebar-footer">
+      <div><span class="status-dot online"></span>Tushare 在线</div>
+      <div style="margin-top:2px"><span class="status-dot online"></span>DeepSeek 在线</div>
+    </div>
+  </aside>
+
+  <!-- ========== COLUMN 2: Stock Pool Top 30 ========== -->
+  <nav class="stock-pool" id="stockPool">
+    <div class="pool-header">
+      <div class="pool-title">龟龟策略 · 股票池</div>
+      <div class="pool-filters" id="poolFilters">
+        <button class="pool-filter active" data-pool="all">全部 30</button>
+        <button class="pool-filter core-filter" data-pool="core">核心 2</button>
+        <button class="pool-filter watch-filter" data-pool="watch">观察 8</button>
+        <button class="pool-filter" data-pool="alt">备选 20</button>
+      </div>
+    </div>
+
+    <div class="pool-list-wrap">
+      <ul class="pool-list" id="poolList">
+        <!-- Filled by JS -->
+      </ul>
+    </div>
+
+    <div class="pool-footer">
+      <div class="summary-line">
+        筛选状态: <span style="color:var(--green)">✅ 完成</span>
+      </div>
+      <div class="summary-line">
+        输入: <span>5,207</span> 只 → HardGate: <span>901</span> 只 → Top 30
+      </div>
+      <div class="summary-line" style="margin-top:2px">
+        上次更新: <span>2026-06-08 09:30</span>
+      </div>
+      <div class="actions">
+        <button class="btn-sm primary" onclick="alert('模拟：重新触发全A筛选...')">🔄 重新筛选</button>
+        <button class="btn-sm" onclick="alert('模拟：导出 CSV')">导出 CSV</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ========== COLUMN 3: Main Content ========== -->
+  <main class="main-content" id="mainContent">
+    <!-- Top Bar -->
+    <div class="topbar" id="topbar">
+      <div class="breadcrumb" id="breadcrumb">Augur</div>
+      <div class="topbar-right">
+        <button class="btn-ghost" onclick="alert('模拟：下载完整报告 HTML')">下载报告</button>
+      </div>
+    </div>
+
+    <!-- Content area: empty state by default, replaced when stock selected -->
+    <div class="content-scroll empty-state" id="contentArea">
+      <div class="empty-icon">🔮</div>
+      <div class="empty-title">从左侧股票池选择一只股票</div>
+      <div class="empty-desc">筛选完成于 2026-06-08 09:30 · 共 30 只候选标的</div>
+      <div class="empty-actions">
+        <button class="btn-ghost" onclick="alert('模拟：跳转全A筛选详情页')">查看全A筛选详情</button>
+        <button class="btn-ghost" style="background:var(--accent);border-color:var(--accent);color:#fff" onclick="alert('模拟：重新筛选')">重新筛选</button>
+      </div>
+      <div class="recent-grid">
+        <div class="recent-card" onclick="selectStock('600519')">
+          <div class="rc-name">贵州茅台</div>
+          <div class="rc-score" style="color:var(--text-dim)">26.3</div>
+          <div class="rc-meta">备选池 · 2天前</div>
+        </div>
+        <div class="recent-card" onclick="selectStock('000651')">
+          <div class="rc-name">格力电器</div>
+          <div class="rc-score" style="color:var(--text-dim)">45.4</div>
+          <div class="rc-meta">备选池 · 2天前</div>
+        </div>
+        <div class="recent-card" onclick="selectStock('002415')">
+          <div class="rc-name">海康威视</div>
+          <div class="rc-score" style="color:var(--yellow)">52.1</div>
+          <div class="rc-meta">观察池 · 3天前</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<script>
+// ============================================================
+// DATA: Top 30 stock pool
+// ============================================================
+const stocks = [
+  // Real data from turtle run results
+  { rank: 1,  name: '海康威视', code: '002415.SH', final: 52.1, pool: 'watch', hasData: false },
+  { rank: 2,  name: '招商银行', code: '600036.SH', final: 48.2, pool: 'alt',   hasData: false },
+  { rank: 3,  name: '格力电器', code: '000651.SZ', final: 45.4, pool: 'alt',   hasData: true  },
+  { rank: 4,  name: '中国平安', code: '601318.SH', final: 41.8, pool: 'alt',   hasData: false },
+  { rank: 5,  name: '福耀玻璃', code: '600660.SH', final: 40.5, pool: 'alt',   hasData: false },
+  { rank: 6,  name: '伊利股份', code: '600887.SH', final: 39.2, pool: 'alt',   hasData: false },
+  { rank: 7,  name: '美的集团', code: '000333.SZ', final: 38.7, pool: 'alt',   hasData: false },
+  { rank: 8,  name: '双汇发展', code: '000895.SZ', final: 37.1, pool: 'alt',   hasData: false },
+  { rank: 9,  name: '长江电力', code: '600900.SH', final: 36.8, pool: 'alt',   hasData: false },
+  { rank: 10, name: '中国神华', code: '601088.SH', final: 35.9, pool: 'alt',   hasData: false },
+  { rank: 11, name: '片仔癀',   code: '600436.SH', final: 35.2, pool: 'alt',   hasData: false },
+  { rank: 12, name: '海天味业', code: '603288.SH', final: 34.6, pool: 'alt',   hasData: false },
+  { rank: 13, name: '牧原股份', code: '002714.SZ', final: 33.8, pool: 'alt',   hasData: false },
+  { rank: 14, name: '万华化学', code: '600309.SH', final: 32.5, pool: 'alt',   hasData: false },
+  { rank: 15, name: '恒瑞医药', code: '600276.SH', final: 31.9, pool: 'alt',   hasData: false },
+  { rank: 16, name: '比亚迪',   code: '002594.SZ', final: 31.2, pool: 'alt',   hasData: false },
+  { rank: 17, name: '五粮液',   code: '000858.SZ', final: 30.4, pool: 'alt',   hasData: false },
+  { rank: 18, name: '中兴通讯', code: '000063.SZ', final: 29.1, pool: 'alt',   hasData: false },
+  { rank: 19, name: '中国中免', code: '601888.SH', final: 28.3, pool: 'alt',   hasData: false },
+  { rank: 20, name: '上汽集团', code: '600104.SH', final: 27.6, pool: 'alt',   hasData: false },
+  { rank: 21, name: '贵州茅台', code: '600519.SH', final: 26.3, pool: 'alt',   hasData: true  },
+  { rank: 22, name: '万科A',    code: '000002.SZ', final: 25.8, pool: 'alt',   hasData: false },
+  { rank: 23, name: '保利发展', code: '600048.SH', final: 24.4, pool: 'alt',   hasData: false },
+  { rank: 24, name: '京东方A',  code: '000725.SZ', final: 23.1, pool: 'alt',   hasData: false },
+  { rank: 25, name: '顺丰控股', code: '002352.SZ', final: 22.7, pool: 'watch', hasData: false },
+  { rank: 26, name: '中国建筑', code: '601668.SH', final: 21.3, pool: 'alt',   hasData: false },
+  { rank: 27, name: '中国联通', code: '600050.SH', final: 20.5, pool: 'alt',   hasData: false },
+  { rank: 28, name: '爱尔眼科', code: '300015.SZ', final: 19.8, pool: 'watch', hasData: false },
+  { rank: 29, name: '海尔智家', code: '600690.SH', final: 18.2, pool: 'watch', hasData: false },
+  { rank: 30, name: '中国太保', code: '601601.SH', final: 17.6, pool: 'alt',   hasData: false },
+];
+
+// ============================================================
+// DETAILED REPORT DATA (from actual turtle runs)
+// ============================================================
+const reportData = {
+  '600519': {
+    name: '贵州茅台', code: '600519.SH',
+    final: 26.3, pool: '备选池', poolClass: 'alt',
+    l3: { score: 26.3, max: 30, label: '优', dim: 21.0, dimMax: 24, classify: 'STANDARD_CONSUMER' },
+    l4: { score: 0.0, max: 45, pr: 2.35, oe: '存疑', oeFlag: '🟡' },
+    l5: { score: 0.0, max: 25, margin: -62.0, position: 0.0 },
+    cv: { ok: 9, warn: 0, fail: 0, uncertain: 1, total: 10 },
+    llmScore: 38.0,
+    summary: {
+      period: '2025-12-31', reportType: '年报', source: 'Tushare',
+      revenue: { val: '1,741 亿', sub: '+6.9% YoY', cls: 'up' },
+      profit: { val: '862 亿', sub: '+8.3% YoY', cls: 'up' },
+      opcf: { val: '925 亿', sub: '+9.1%', cls: 'up' },
+      totalAssets: { val: '3,218 亿', sub: '+12.1%', cls: 'up' },
+      roe: { val: '34.5%', sub: '优', cls: 'up' },
+      grossMargin: { val: '91.2%', sub: '→ 稳定', cls: 'neutral' },
+      pe: { val: '28.7', sub: '偏高', cls: 'down' },
+      divYield: { val: '2.87%', sub: '→ 稳定', cls: 'neutral' },
+      dividend: '连续5年以上 · 年均增长12% · 分红率51%',
+      valuation: '总市值 18,420 亿 · PB 10.1 · PS 10.6',
+    },
+    pipeline: [
+      'Phase1 ████████ 数据快照 ✅ (2026-06-07 22:54)',
+      'Phase2 ████████ 量化打分 ✅ L2=12.5',
+      'Phase3 ████████ 财报分析 ✅ 7模块完成',
+      'Phase3.5 ████████ LLM商业检索 ✅ (fallback)',
+      'Phase5a ████████ AI分析Agent ✅ 38.0/45',
+      'Phase5b ████████ 交叉验证 ✅ 9✓ 0⚠ 0✗ 1?',
+      'Phase5c ████████ 根因反思 ✅ accept=1',
+      'Phase6 ████████ 报告生成 ✅',
+    ],
+    tabs: {
+      pipeline: `
+        <h2>管线摘要</h2>
+        <div class="highlight-box">
+          <div>HardGate: <span class="tag-ok">PASS</span></div>
+          <div>L2 概览: 12.5 (financial_quality=7.0, valuation=2.5, liquidity=2.0, bonus=1.0)</div>
+          <div>分类: <span class="tag-info">STANDARD_CONSUMER</span></div>
+          <div>L3 商业模式: <span class="tag-ok">26.3/30</span> (优) dim-score=21.0/24</div>
+          <div>L4 穿透回报: <span class="tag-warn">0.0/45</span> PR=2.35% OE=<span class="tag-warn">[?] 存疑</span></div>
+          <div>L5 安全边际: <span class="tag-issue">0.0/25</span> 估值安全边际=<span class="tag-issue">-62.0%</span></div>
+          <div>仓位建议: <span class="tag-issue">0.0%</span></div>
+          <div style="margin-top:8px"><strong>Final Score: 26.3/100</strong> → 备选池 (＜50分)</div>
+          <div>PR 内部分解: DC=5,839,461万 ratio=65.9%(tier2) buyback=0万</div>
+        </div>
+      `,
+      analysis: `
+        <h2>AI 分析报告</h2>
+        <p><strong>贵州茅台（600519.SH）</strong> 作为A股市场最具品牌护城河的消费品公司，在 Augur 框架下获得 <strong>26.3/100</strong> 分（备选池）。</p>
+
+        <h3>📊 L3 十二维商业模式评分明细</h3>
+        <p style="font-size:11px;color:var(--text-muted)">维度得分 21/24 → L3 换算 26.3/30（优）| 分类: STANDARD_CONSUMER</p>
+        <div class="highlight-box" style="font-size:12px;line-height:2">
+          <div><strong>盈利能力:</strong> ROE水平 <span class="tag-ok">2/2</span> | ROE稳定性 <span class="tag-ok">2/2</span> | ROIC-ROE差距 <span class="tag-issue">0/2</span> | 毛利率水平 <span class="tag-ok">2/2</span> | 毛利率稳定性 <span class="tag-ok">2/2</span></div>
+          <div><strong>成熟度:</strong> CAPEX/经营CF <span class="tag-ok">2/2</span> | 总资产增速 <span class="tag-ok">2/2</span> | 营收增速 <span class="tag-ok">2/2</span></div>
+          <div><strong>资本纪律:</strong> 分红持续性 <span class="tag-ok">2/2</span> | 股本变动 <span class="tag-ok">2/2</span></div>
+          <div><strong>治理:</strong> 管理层稳定性 <span class="tag-warn">1/2</span>（数据不足）| 盈利真实性 <span class="tag-ok">2/2</span>（含金量≥0.8）</div>
+          <div style="margin-top:6px;color:var(--text-dim)">ROIC-ROE差距 &gt;10pp — 高杠杆嫌疑（白酒行业正常）| 管理层信号: unclear</div>
+        </div>
+
+        <h3>核心发现</h3>
+        <p>✅ <strong>商业护城河极深</strong>：品牌+稀缺资产+规模效应三重护城河，可持续性超过10年。十二维评估中盈利能力全满，毛利率 91.2% 冠绝A股，是典型的拥有极端定价权的消费品。</p>
+        <p>⚠️ <strong>营收增速放缓</strong>：营收近3年CAGR 6.9%，归母净利润近3年CAGR 4.9%。ROE 从 2024 年的 38.4% 下降至 2025 年的 34.5%，盈利能力边际放缓。</p>
+        <p>🔴 <strong>穿透回报率极低</strong>：PR 仅 2.35%，远低于价值投资门槛（≥12%）。PE 28.7x、PB 10.1x 下，股东实际回报率甚至不及国债。</p>
+        <p>🔴 <strong>估值安全边际为负</strong>：安全边际 -62%，当前市值 16,371 亿 vs 合理市值 6,214 亿，估值严重偏离内在价值。</p>
+
+        <h3>🏭 商业模式与护城河</h3>
+        <p>贵州茅台的核心业务是生产和销售以茅台酒为代表的高端酱香型白酒。其商业模式依赖于<strong>独特的酿造工艺、稀缺的产地资源（贵州茅台镇）以及强大的品牌溢价能力</strong>。公司通过经销商渠道和自营渠道进行销售，持续推动直销比例提升以增强利润空间。毛利率长期维持在 91%+，是A股最强的定价权标的。（来源: LLM商业检索 · 置信度: high）</p>
+
+        <h3>👤 管理层与治理</h3>
+        <p>管理层相对稳定，董事长丁雄军自2021年上任以来推动营销改革和产品结构优化，总经理李静仁等核心高管团队保持连续性。公司治理结构清晰，决策效率较高，但近年来管理层变动频率有所增加。L3 管理层稳定性维度因数据不足暂评 1/2（中性）。（来源: LLM商业检索 · 置信度: high）</p>
+
+        <h3>🏆 行业地位</h3>
+        <p>中国白酒行业<strong>绝对龙头</strong>，在高端白酒市场占据主导地位，品牌价值、营收规模和净利润均远超同行。产品具有极强的定价权和稀缺性，行业地位稳固。面临次高端白酒（五粮液、泸州老窖）竞争和年轻消费群体口味变化的长期挑战。（来源: LLM商业检索 · 置信度: high）</p>
+
+        <h3>⚠️ 风险与监管</h3>
+        <p>宏观经济波动对高端消费的抑制、政策对白酒行业的限制（限制公款消费、消费税改革）、环保与产能扩张的地理约束（核心产区仅 15.03 平方公里）。公司合规记录良好，但行业监管政策变化带来不确定性。（来源: LLM商业检索 · 置信度: high）</p>
+
+        <h3>💰 分红与回购</h3>
+        <p>长期保持高分红政策，近年分红比例稳定在 50% 以上，2022 年特别分红后累计分红金额巨大。公司极少进行股票回购，利润主要用于分红和留存发展。近5年每股分红: 21.68→47.82→49.98→51.55→23.96 元/股，CAGR=2.5%。（来源: LLM商业检索 · 置信度: high）</p>
+
+        <h3>🔴 关键风险标记</h3>
+        <p>• 经营现金流/净利润 5年均值 0.75 &lt; 1.0 — 现金转化率偏低（白酒行业正常波动范畴）</p>
+        <p>• 存货周转天数 1505 天（约4.1年）— 陈化工艺需要，但过高库存暗示渠道压货风险</p>
+        <p>• L4 PR 2.35% 远低于 10年期国债收益率 — 当前估值下安全垫不足</p>
+        <p>• OE 质量标签: 🟡存疑 | OE趋势 3yr CAGR=-4.1% | OE稳定性 CV=0.37（偏高）</p>
+      `,
+      cv: `
+        <h2>交叉验证结果</h2>
+        <p>交叉验证 Agent 对 AI 分析 Agent 提取的 <strong>10 条声明</strong> 进行了独立核查：</p>
+        <div class="highlight-box">
+          <div>验证通过: <span class="tag-ok">9 ✓</span></div>
+          <div>缺少证据: <span class="tag-warn">1 ?</span></div>
+          <div>验证失败: <span class="tag-issue">0 ✗</span></div>
+          <div style="margin-top:8px"><strong>整体结果: 通过</strong></div>
+        </div>
+        <h3>存疑声明</h3>
+        <p><span class="tag-warn">[?缺失证据]</span> claim_03: 高端白酒龙头市占率超过60%，竞争者难以进入 — 此说法源于LLM通用知识，缺少实时权威数据源支撑。</p>
+        <h3>根因反思</h3>
+        <p>1 条 CV 质疑中，1 条被接受（市占率声明缺少实时数据支撑），需补充行业份额统计数据或注明该声明为LLM推断。</p>
+      `,
+      financial: `
+        <h2>财报深度分析 (7模块)</h2>
+        <h3>模块1: 成长性</h3>
+        <p>营收近3年CAGR=6.9%, 近5年CAGR=8.0% | 净利润近3年CAGR=4.9%, 近5年CAGR=6.9% | 稳定性=良好</p>
+        <h3>模块2: 盈利能力</h3>
+        <p>毛利率 91.9%→91.9%→92.0%→91.9%→91.2% | 净利率 52.7%→52.7%→52.5%→52.3%→50.5% | 趋势=轻微下降</p>
+        <h3>模块3: ROE杜邦</h3>
+        <p>ROE 32.4%→32.4%→36.2%→38.4%→34.5% | 特征=高净利率驱动</p>
+        <h3>模块4: 现金流</h3>
+        <p>经营现金流/净利润5年均值=0.75 | 近5年平均自由现金流=545.9亿 | 评价=良好</p>
+        <h3>模块5: 资产负债</h3>
+        <p>资产负债率≈16.4% | 评价=稳健 | 现金充裕，零有息负债</p>
+        <h3>模块6: 分红记录</h3>
+        <p>近5年每股分红: 21.68→47.82→49.98→51.55→23.96 元/股 | 每股分红CAGR=2.5% | 连续分红5年+</p>
+        <h3>模块7: 营运效率</h3>
+        <p>存货周转=1505天 | CCC=N/A | 评价=偏慢（白酒行业特性）</p>
+      `,
+      raw: `
+        <h2>原始数据</h2>
+        <p>数据来源: Tushare Pro</p>
+        <p>报告期: 2025-12-31</p>
+        <p>生成时间: 2026-06-07 22:56</p>
+        <p>LLM 提供商: DeepSeek (deepseek-chat)</p>
+        <p>商业检索: 5/5 轮达到最大轮次, 来源=fallback</p>
+        <p>管理层稳定性信号: unclear</p>
+        <div class="highlight-box">
+          <div>营业收入: 174,100,000,000 元（Tushare income）</div>
+          <div>归母净利润: 86,200,000,000 元（Tushare income）</div>
+          <div>经营CF净额: 92,500,000,000 元（Tushare cashflow）</div>
+          <div>总资产: 321,800,000,000 元（Tushare balancesheet）</div>
+        </div>
+      `,
+    },
+  },
+  '000651': {
+    name: '格力电器', code: '000651.SZ',
+    final: 45.4, pool: '备选池', poolClass: 'alt',
+    l3: { score: 21.3, max: 30, label: '良', dim: 16.0, dimMax: 24, classify: 'STANDARD_CONSUMER' },
+    l4: { score: 6.2, max: 45, pr: 9.95, oe: '存疑', oeFlag: '🟡' },
+    l5: { score: 18.0, max: 25, margin: 42.1, position: 15.0 },
+    cv: { ok: 10, warn: 0, fail: 0, uncertain: 0, total: 10 },
+    llmScore: 30.0,
+    summary: {
+      period: '2025-12-31', reportType: '年报', source: 'Tushare',
+      revenue: { val: '1,516 亿', sub: '-8.6% 3yr', cls: 'down' },
+      profit: { val: '239 亿', sub: '+2.0% 3yr', cls: 'neutral' },
+      opcf: { val: '335 亿', sub: '充裕', cls: 'up' },
+      totalAssets: { val: '3,100 亿', sub: '稳定', cls: 'neutral' },
+      roe: { val: '20.5%', sub: '良', cls: 'neutral' },
+      grossMargin: { val: '29.8%', sub: '→ 稳定', cls: 'neutral' },
+      pe: { val: '7.8', sub: '偏低', cls: 'up' },
+      divYield: { val: '4.82%', sub: '→ 稳定', cls: 'neutral' },
+      dividend: '连续5年以上 · 累计分红超300亿 · 分红率49%',
+      valuation: '总市值 1,868 亿 · 资产负债率 61.7% · 有息负债率 17.4%',
+    },
+    pipeline: [
+      'Phase1 ████████ 数据快照 ✅ (2026-06-07 23:01)',
+      'Phase2 ████████ 量化打分 ✅ L2=14.0',
+      'Phase3 ████████ 财报分析 ✅ 7模块完成',
+      'Phase3.5 ████████ LLM商业检索 ✅ (fallback)',
+      'Phase5a ████████ AI分析Agent ✅ 30.0/45',
+      'Phase5b ████████ 交叉验证 ✅ 10✓ 0⚠ 0✗ 0?',
+      'Phase5c ████████ (跳过)',
+      'Phase6 ████████ 报告生成 ✅',
+    ],
+    tabs: {
+      pipeline: `
+        <h2>管线摘要</h2>
+        <div class="highlight-box">
+          <div>HardGate: <span class="tag-ok">PASS</span></div>
+          <div>L2 概览: 14.0 (financial_quality=5.0, valuation=6.0, liquidity=2.0, bonus=1.0)</div>
+          <div>分类: <span class="tag-info">STANDARD_CONSUMER</span></div>
+          <div>L3 商业模式: <span class="tag-ok">21.3/30</span> (良) dim-score=16.0/24 | 管理层: <span class="tag-ok">stable</span></div>
+          <div>L4 穿透回报: <span class="tag-warn">6.2/45</span> PR=9.95% OE=<span class="tag-warn">[?] 存疑</span></div>
+          <div>L5 安全边际: <span class="tag-ok">18.0/25</span> 估值安全边际=<span class="tag-ok">+42.1%</span> 仓位=15.0%</div>
+          <div style="margin-top:8px"><strong>Final Score: 45.4/100</strong> → 备选池 (＜50分)</div>
+          <div>PR 内部分解: DC=4,466,580万 ratio=49.3%(tier2) buyback=0万</div>
+        </div>
+      `,
+      analysis: `
+        <h2>AI 分析报告</h2>
+        <p><strong>格力电器（000651.SZ）</strong> 作为中国家电双寡头之一，在 Augur 框架下获得 <strong>45.4/100</strong> 分（备选池）。</p>
+
+        <h3>📊 L3 十二维商业模式评分明细</h3>
+        <p style="font-size:11px;color:var(--text-muted)">维度得分 17/24 → L3 换算 21.3/30（良）| 分类: STANDARD_CONSUMER</p>
+        <div class="highlight-box" style="font-size:12px;line-height:2">
+          <div><strong>盈利能力:</strong> ROE水平 <span class="tag-ok">2/2</span> | ROE稳定性 <span class="tag-ok">2/2</span> | ROIC-ROE差距 <span class="tag-issue">0/2</span> | 毛利率水平 <span class="tag-issue">0/2</span> | 毛利率稳定性 <span class="tag-ok">2/2</span></div>
+          <div><strong>成熟度:</strong> CAPEX/经营CF <span class="tag-ok">2/2</span> | 总资产增速 <span class="tag-ok">2/2</span> | 营收增速 <span class="tag-issue">0/2</span>（负增长）</div>
+          <div><strong>资本纪律:</strong> 分红持续性 <span class="tag-warn">1/2</span> | 股本变动 <span class="tag-ok">2/2</span></div>
+          <div><strong>治理:</strong> 管理层稳定性 <span class="tag-ok">2/2</span>（LLM确认稳定）| 盈利真实性 <span class="tag-ok">2/2</span>（含金量≥0.8）</div>
+          <div style="margin-top:6px;color:var(--text-dim)">毛利率 &lt;30% 不达标 | 营收负增长 | 分红持续性偏弱（均值49%）| 管理层: stable</div>
+        </div>
+
+        <h3>核心发现</h3>
+        <p>✅ <strong>商业护城河</strong>：品牌+规模效应双重护城河。毛利率稳定在 28%+，ROE 维持 20%+，空调行业龙头地位稳固。L3 得分 21.3/30（良）。</p>
+        <p>✅ <strong>估值合理</strong>：安全边际 +42.1%，当前 PE 仅 7.8 倍，处于历史较低分位。合理市值 3,144 亿，当前市值 2,213 亿存在安全垫。</p>
+        <p>✅ <strong>现金流充裕</strong>：经营现金流/净利润 5年均值=1.41，自由现金流充裕（近5年平均 333.9 亿），现金流质量优秀。</p>
+        <p>⚠️ <strong>营收持续萎缩</strong>：营收近3年CAGR=-8.6%，近5年CAGR=-2.4%。家电市场饱和，多元化转型（智能装备、新能源）尚未产生规模效应。</p>
+        <p>⚠️ <strong>资产负债率偏高</strong>：资产负债率 61.7% 偏高，但有息负债率仅 17.4%，货币资金/有息负债=1.6x，偿债风险可控。</p>
+        <p>🔴 <strong>OE 存疑</strong>：OE 稳定性 CV=0.33 偏高，近3年 OE CAGR=-7.6%，需关注实际盈利能力下滑趋势。</p>
+
+        <h3>🏭 商业模式与护城河</h3>
+        <p>格力电器以空调为核心业务，采用<strong>"自主创新+全产业链"</strong>模式，涵盖研发、制造、销售和售后服务，近年逐步拓展至智能装备、新能源等领域。渠道改革强调线上线下融合，但空调收入仍占绝对主导，多元化尚未形成第二增长曲线。（来源: LLM商业检索 · 置信度: high）</p>
+
+        <h3>👤 管理层与治理</h3>
+        <p>董事长董明珠自2012年起长期领导公司，总经理和财务总监等核心高管相对稳定，近2-3年未发生重大变更。管理层风格强势，注重技术自主和品牌控制，决策集中度较高。L3 管理层稳定性维度因 LLM 检索确认 stable，后修正为 2/2。（来源: LLM商业检索 · 置信度: high）</p>
+
+        <h3>🏆 行业地位</h3>
+        <p>中国空调行业龙头，市场份额长期位居前三，与美的、海尔形成<strong>寡头竞争格局</strong>。在中央空调和家用空调领域技术领先，但近年面临美的在营收规模上的超越，行业竞争加剧。（来源: LLM商业检索 · 置信度: high）</p>
+
+        <h3>⚠️ 风险与监管</h3>
+        <p>房地产市场波动直接影响空调需求、原材料（铜、铝）成本上涨挤压利润、渠道改革中的经销商关系调整是三大核心风险。家电行业受能效标准、环保政策及反垄断法规约束，格力合规记录良好。（来源: LLM商业检索 · 置信度: high）</p>
+
+        <h3>💰 分红与回购</h3>
+        <p>历史上分红率较高，2019-2021年累计分红超300亿元，但2022年分红比例有所下降（每股分红 1.00 元，较前年 3.00 元大幅缩减）。公司近年实施多次股份回购，用于股权激励或注销。每股分红 CAGR=-24.0%，分红力度在减弱。（来源: LLM商业检索 · 置信度: high）</p>
+
+        <h3>🔴 关键风险标记</h3>
+        <p>• 营收近3年CAGR=-8.6% — 家电主业持续萎缩，多元化尚未接棒</p>
+        <p>• 每股分红 CAGR=-24.0% — 分红力度显著减弱，股东回报下降</p>
+        <p>• OE 趋势 3yr CAGR=-7.6% — 实际盈利能力在恶化</p>
+        <p>• PR=9.95% 略低于目标 12% — 穿透回报率勉强及格</p>
+      `,
+      cv: `
+        <h2>交叉验证结果</h2>
+        <p>交叉验证 Agent 对 AI 分析 Agent 提取的 <strong>10 条声明</strong> 进行了独立核查：</p>
+        <div class="highlight-box">
+          <div>验证通过: <span class="tag-ok">10 ✓</span></div>
+          <div>缺少证据: <span class="tag-warn">0 ?</span></div>
+          <div>验证失败: <span class="tag-issue">0 ✗</span></div>
+          <div style="margin-top:8px"><strong>🎉 全部声明验证通过！</strong></div>
+        </div>
+        <p>格力电器 10 条声明全部通过交叉验证，AI 分析 Agent 的输出与源数据高度一致，无矛盾或缺失证据。</p>
+      `,
+      financial: `
+        <h2>财报深度分析 (7模块)</h2>
+        <h3>模块1: 成长性</h3>
+        <p>营收近3年CAGR=-8.6%, 近5年CAGR=-2.4% | 净利润近3年CAGR=+2.0%, 近5年CAGR=+6.0% | 营收持续萎缩</p>
+        <h3>模块2: 盈利能力</h3>
+        <p>毛利率 26.0%→26.0%→30.6%→29.4%→29.8% | 净利率 12.2%→12.2%→13.6%→17.1%→16.9% | 趋势=改善中</p>
+        <h3>模块3: ROE杜邦</h3>
+        <p>ROE 24.5%→24.5%→27.2%→25.3%→20.5% | 特征=中净利率+中杠杆</p>
+        <h3>模块4: 现金流</h3>
+        <p>经营现金流/净利润5年均值=1.41 | 近5年平均自由现金流=333.9亿 | 评价=优秀</p>
+        <h3>模块5: 资产负债</h3>
+        <p>资产负债率≈61.7% 有息负债率=17.4% 货币资金/有息负债=1.6x | 评价=偏高但可控</p>
+        <h3>模块6: 分红记录</h3>
+        <p>近5年每股分红: 3.00→2.00→2.38→3.00→1.00 元/股 | 每股分红CAGR=-24.0% | 连续分红5年+</p>
+        <h3>模块7: 营运效率</h3>
+        <p>应收周转=34.2天 应付周转=47.4天 存货周转=86.0天 CCC=72.8天 | 评价=良好</p>
+      `,
+      raw: `
+        <h2>原始数据</h2>
+        <p>数据来源: Tushare Pro</p>
+        <p>报告期: 2025-12-31</p>
+        <p>生成时间: 2026-06-07 23:03</p>
+        <p>LLM 提供商: DeepSeek (deepseek-chat)</p>
+        <p>商业检索: 5/5 轮达到最大轮次, 来源=fallback</p>
+        <p>管理层稳定性信号: stable (修正 1→2 分)</p>
+        <div class="highlight-box">
+          <div>营业收入: 151,600,000,000 元（Tushare income）</div>
+          <div>归母净利润: 23,900,000,000 元（Tushare income）</div>
+          <div>经营CF净额: 33,500,000,000 元（Tushare cashflow）</div>
+          <div>总资产: 310,000,000,000 元（Tushare balancesheet）</div>
+        </div>
+      `,
+    },
+  },
+};
+
+// ============================================================
+// RENDER: Stock pool list
+// ============================================================
+function getPoolClass(pool) {
+  if (pool === 'core') return 'core';
+  if (pool === 'watch') return 'watch';
+  return 'alt';
+}
+function getPoolLabel(pool) {
+  if (pool === 'core') return '核心';
+  if (pool === 'watch') return '观察';
+  return '备选';
+}
+function getScoreColor(final) {
+  if (final >= 75) return 'var(--green)';
+  if (final >= 50) return 'var(--yellow)';
+  return 'var(--text-dim)';
+}
+
+let activePoolFilter = 'all';
+
+function renderPoolList() {
+  const list = document.getElementById('poolList');
+  const filtered = activePoolFilter === 'all' ? stocks : stocks.filter(s => s.pool === activePoolFilter);
+  list.innerHTML = filtered.map(s => {
+    const poolClass = getPoolClass(s.pool);
+    const poolLabel = getPoolLabel(s.pool);
+    const scoreColor = getScoreColor(s.final);
+    return `
+      <li class="pool-item" data-code="${s.code.replace(/\.\w+$/, '')}" onclick="selectStock('${s.code.replace(/\.\w+$/, '')}')">
+        <span class="stock-rank">${s.rank}</span>
+        <span class="stock-name">${s.name}</span>
+        <span class="stock-score" style="color:${scoreColor}">${s.final.toFixed(1)}</span>
+        <span class="stock-code">${s.code}</span>
+        <div class="stock-meta">
+          <span class="pool-tag ${poolClass}">${poolLabel}</span>
+        </div>
+        <div class="score-bar-wrap">
+          <div class="score-bar-fill ${poolClass}" style="width:${s.final}%"></div>
+        </div>
+      </li>
+    `;
+  }).join('');
+}
+
+// ============================================================
+// RENDER: Analysis content for selected stock
+// ============================================================
+function renderAnalysisContent(code) {
+  const data = reportData[code];
+  if (!data) {
+    // No real data — show placeholder
+    const stock = stocks.find(s => s.code.replace(/\.\w+$/, '') === code);
+    const name = stock ? stock.name : code;
+    return `
+      <div class="content-scroll empty-state">
+        <div class="empty-icon">📊</div>
+        <div class="empty-title">${name}</div>
+        <div class="empty-desc">此股票尚未运行完整分析管线，仅有全A筛选得分</div>
+        <div class="empty-desc" style="font-family:var(--font-mono);font-size:18px;color:var(--text-dim);margin:12px 0">
+          Final Score: ${stock ? stock.final.toFixed(1) : 'N/A'} / 100
+        </div>
+        <div class="empty-actions">
+          <button class="btn-ghost" style="background:var(--accent);border-color:var(--accent);color:#fff" onclick="alert('模拟：触发 ${name} 分析管线')">运行分析</button>
+        </div>
+      </div>
+    `;
+  }
+
+  const s = data.summary;
+  const l3frac = (data.l3.score / data.l3.max * 100).toFixed(0);
+  const l4frac = (data.l4.score / data.l4.max * 100).toFixed(0);
+  const l5frac = (data.l5.score / data.l5.max * 100).toFixed(0);
+  const finalFrac = (data.final).toFixed(0);
+
+  function barColor(pct) {
+    if (pct >= 60) return 'green';
+    if (pct >= 30) return 'yellow';
+    return 'red';
+  }
+
+  return `
+    <div class="content-scroll">
+      <!-- Data overview -->
+      <div class="data-overview">
+        <!-- Source data summary -->
+        <div class="summary-card">
+          <div class="card-title">源核心数据摘要</div>
+          <div class="summary-meta">
+            <span>年报期: ${s.period}</span>
+            <span>报告期: ${s.reportType}</span>
+            <span>数据源: ${s.source}</span>
+          </div>
+          <div class="summary-grid">
+            <div class="summary-item">
+              <div class="si-label">营业总收入</div>
+              <div class="si-value">${s.revenue.val}</div>
+              <div class="si-sub ${s.revenue.cls}">${s.revenue.sub}</div>
+            </div>
+            <div class="summary-item">
+              <div class="si-label">归母净利润</div>
+              <div class="si-value">${s.profit.val}</div>
+              <div class="si-sub ${s.profit.cls}">${s.profit.sub}</div>
+            </div>
+            <div class="summary-item">
+              <div class="si-label">经营CF净额</div>
+              <div class="si-value">${s.opcf.val}</div>
+              <div class="si-sub ${s.opcf.cls}">${s.opcf.sub}</div>
+            </div>
+            <div class="summary-item">
+              <div class="si-label">总资产</div>
+              <div class="si-value">${s.totalAssets.val}</div>
+              <div class="si-sub ${s.totalAssets.cls}">${s.totalAssets.sub}</div>
+            </div>
+            <div class="summary-item">
+              <div class="si-label">ROE</div>
+              <div class="si-value">${s.roe.val}</div>
+              <div class="si-sub ${s.roe.cls}">${s.roe.sub}</div>
+            </div>
+            <div class="summary-item">
+              <div class="si-label">毛利率</div>
+              <div class="si-value">${s.grossMargin.val}</div>
+              <div class="si-sub ${s.grossMargin.cls}">${s.grossMargin.sub}</div>
+            </div>
+            <div class="summary-item">
+              <div class="si-label">PE(TTM)</div>
+              <div class="si-value">${s.pe.val}</div>
+              <div class="si-sub ${s.pe.cls}">${s.pe.sub}</div>
+            </div>
+            <div class="summary-item">
+              <div class="si-label">股息率</div>
+              <div class="si-value">${s.divYield.val}</div>
+              <div class="si-sub ${s.divYield.cls}">${s.divYield.sub}</div>
+            </div>
+          </div>
+          <div class="summary-divider">
+            <div>分红: <span class="val">${s.dividend}</span></div>
+          </div>
+          <div class="summary-divider" style="border-top:none;padding-top:2px">
+            <div>估值: <span class="val">${s.valuation}</span></div>
+          </div>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Final Score</div>
+            <div class="kpi-value" style="color:${getScoreColor(data.final)}">${data.final.toFixed(1)}</div>
+            <div class="kpi-sub">/ 100</div>
+            <div class="kpi-bar-wrap"><div class="kpi-bar-fill ${barColor(finalFrac)}" style="width:${finalFrac}%"></div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">分池</div>
+            <div class="kpi-value" style="font-size:18px;color:${data.pool === '核心池' ? 'var(--green)' : data.pool === '观察池' ? 'var(--yellow)' : 'var(--text-dim)'}">${data.pool}</div>
+            <div class="kpi-sub">${data.final >= 75 ? '≥75分' : data.final >= 50 ? '50-74分' : '<50分'}</div>
+            <span class="kpi-badge ${data.poolClass === 'core' ? 'green' : data.poolClass === 'watch' ? 'yellow' : ''}" style="${data.poolClass === 'alt' ? 'background:var(--bg-hover);color:var(--text-dim)' : ''}">○ 核心 ≥75</span>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">L3 商业模式</div>
+            <div class="kpi-value">${data.l3.score.toFixed(1)}</div>
+            <div class="kpi-sub">/ ${data.l3.max} · ${data.l3.label}</div>
+            <div class="kpi-bar-wrap"><div class="kpi-bar-fill ${barColor(l3frac)}" style="width:${l3frac}%"></div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">L4 穿透回报</div>
+            <div class="kpi-value">${data.l4.score.toFixed(1)}</div>
+            <div class="kpi-sub">/ ${data.l4.max} · PR ${data.l4.pr}%</div>
+            <div class="kpi-bar-wrap"><div class="kpi-bar-fill ${barColor(l4frac)}" style="width:${l4frac}%"></div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">L5 安全边际</div>
+            <div class="kpi-value">${data.l5.score.toFixed(1)}</div>
+            <div class="kpi-sub">/ ${data.l5.max} · 安全边际 ${data.l5.margin >= 0 ? '+' : ''}${data.l5.margin.toFixed(1)}%</div>
+            <div class="kpi-bar-wrap"><div class="kpi-bar-fill ${barColor(l5frac)}" style="width:${l5frac}%"></div></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">交叉验证</div>
+            <div class="kpi-value" style="font-size:16px">
+              <span class="tag-ok">${data.cv.ok}✓</span>
+              <span class="tag-warn">${data.cv.warn}⚠</span>
+              <span class="tag-issue">${data.cv.fail}✗</span>
+              <span style="color:var(--text-muted)">${data.cv.uncertain}?</span>
+            </div>
+            <div class="kpi-sub">共 ${data.cv.total} 条声明</div>
+            <span class="kpi-badge ${data.cv.fail > 0 ? 'red' : data.cv.uncertain > 0 ? 'yellow' : 'green'}">${data.cv.fail > 0 ? '❗未通过' : data.cv.uncertain > 0 ? '通过(有疑问)' : '✅ 全部通过'}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Report Tabs -->
+      <div class="report-section">
+        <div class="report-tabs" id="reportTabs">
+          <button class="report-tab active" data-tab="pipeline">管线摘要</button>
+          <button class="report-tab" data-tab="analysis">AI 分析报告</button>
+          <button class="report-tab" data-tab="cv">交叉验证</button>
+          <button class="report-tab" data-tab="financial">财报深分</button>
+          <button class="report-tab" data-tab="raw">原始数据</button>
+        </div>
+        <div class="report-body" id="reportBody">${data.tabs.pipeline}</div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// EVENT: Select stock
+// ============================================================
+let currentCode = null;
+
+function selectStock(code) {
+  currentCode = code;
+  const stock = stocks.find(s => s.code.replace(/\.\w+$/, '') === code);
+  const name = stock ? stock.name : code;
+
+  // Update breadcrumb
+  document.getElementById('breadcrumb').innerHTML = `Augur / <span>${name} ${code}</span>`;
+
+  // Update pool list selection
+  document.querySelectorAll('.pool-item').forEach(el => el.classList.remove('selected'));
+  const target = document.querySelector(`.pool-item[data-code="${code}"]`);
+  if (target) target.classList.add('selected');
+
+  // Render analysis content
+  const contentArea = document.getElementById('contentArea');
+  contentArea.outerHTML = renderAnalysisContent(code);
+
+  // Re-bind tab switching
+  bindReportTabs(code);
+
+  // Remove empty-state class from main content if present
+  const mc = document.getElementById('mainContent');
+  mc.querySelector('.content-scroll')?.classList.remove('empty-state');
+}
+
+function bindReportTabs(code) {
+  document.querySelectorAll('#reportTabs .report-tab').forEach(tab => {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('#reportTabs .report-tab').forEach(t => t.classList.remove('active'));
+      this.classList.add('active');
+      const tabKey = this.dataset.tab;
+      const data = reportData[code];
+      if (data && data.tabs[tabKey]) {
+        document.getElementById('reportBody').innerHTML = data.tabs[tabKey];
+      }
+    });
+  });
+}
+
+// ============================================================
+// EVENT: Pool filters
+// ============================================================
+document.querySelectorAll('#poolFilters .pool-filter').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('#poolFilters .pool-filter').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    activePoolFilter = this.dataset.pool;
+    renderPoolList();
+    // Re-select current stock if still visible
+    if (currentCode) {
+      const target = document.querySelector(`.pool-item[data-code="${currentCode}"]`);
+      if (target) target.classList.add('selected');
+    }
+  });
+});
+
+// ============================================================
+// EVENT: Sidebar navigation
+// ============================================================
+document.querySelectorAll('.sidebar-item:not(.disabled)').forEach(item => {
+  item.addEventListener('click', function() {
+    document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+
+// ============================================================
+// INIT
+// ============================================================
+renderPoolList();
+
+// Auto-select first stock with data (茅台)
+selectStock('600519');
+</script>
+
+</body>
+</html>

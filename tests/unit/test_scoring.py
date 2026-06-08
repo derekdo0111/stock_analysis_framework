@@ -5,11 +5,11 @@ from unittest.mock import MagicMock, patch, PropertyMock
 import pandas as pd
 import pytest
 
-from src.calculator.turtle_strategy.oe_calculator import OECalculator, OECalculationResult
-from src.calculator.turtle_strategy.pr_calculator import PRCalculator, PRCalculationResult
-from src.calculator.turtle_strategy.l5_calculator import L5Calculator, L5Result
-from src.calculator.turtle_strategy.scoring import TurtleScorer, FinalScore
-from src.data_pool.bundle import StockDataBundle
+from src.turtle.calculator.oe_calculator import OECalculator, OECalculationResult
+from src.turtle.calculator.pr_calculator import PRCalculator, PRCalculationResult
+from src.turtle.calculator.l5_calculator import L5Calculator, L5Result
+from src.turtle.calculator.scoring import TurtleScorer, FinalScore
+from src.core.data.pool.bundle import StockDataBundle
 
 
 @pytest.fixture

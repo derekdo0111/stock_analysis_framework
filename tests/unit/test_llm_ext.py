@@ -4,11 +4,11 @@ import os
 from unittest.mock import MagicMock, patch
 import pytest
 
-from src.llm.client import LLMConfig, LLMClient, LLMError
-from src.llm.analysis_agent import AnalysisAgent, AnalysisResult
-from src.llm.verification_agent import VerificationAgent, VerificationResult
-from src.llm.orchestrator import AgentOrchestrator, OrchestrationResult
-from src.calculator.turtle_strategy.scoring import FinalScore
+from src.core.llm.client import LLMConfig, LLMClient, LLMError
+from src.turtle.llm.analysis_agent import AnalysisAgent, AnalysisResult
+from src.turtle.llm.verification_agent import VerificationAgent, VerificationResult
+from src.turtle.llm.orchestrator import AgentOrchestrator, OrchestrationResult
+from src.turtle.calculator.scoring import FinalScore
 
 
 @pytest.fixture

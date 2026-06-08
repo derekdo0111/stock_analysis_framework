@@ -239,7 +239,7 @@ def _module_to_import_patterns(module_path: str) -> List[Tuple[str, re.Pattern]]
                  rf"from\s+{re.escape(dotted)}\s+import\b",
              ))
         )
-        # e.g. "import src.screener.hard_gate"
+        # e.g. "import src.turtle.screening.hard_gate"
         patterns.append(
             ("direct_import",
              re.compile(
@@ -398,8 +398,8 @@ def check_all(items: List[TraceItem], src_dir: Path) -> List[CheckResult]:
                 # Actually, check if the PARENT package is imported by anything
                 if item.path.endswith("__init__.py"):
                     # For __init__.py files, the "package name" import would be different
-                    # e.g., "from src.data_pool import x" would import data_pool/__init__.py
-                    # But our regex already handles "from src.data_pool import"
+                    # e.g., "from src.core.data.pool import x" would import data_pool/__init__.py
+                    # But our regex already handles "from src.core.data.pool import"
                     results.append(CheckResult(
                         item, "orphaned",
                         "代码存在但零生产引用（仅被测试使用）"

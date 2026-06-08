@@ -5,7 +5,7 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from src.data_pool.bundle import StockDataBundle
+from src.core.data.pool.bundle import StockDataBundle
 
 
 @pytest.fixture
@@ -41,7 +41,7 @@ def mock_client(mock_bundle):
 class TestOECalculatorDeep:
     def test_quality_check_oe_stability_low(self, mock_client):
         """High CV should trigger stability penalty."""
-        from src.calculator.turtle_strategy.oe_calculator import OECalculator
+        from src.turtle.calculator.oe_calculator import OECalculator
         oe = OECalculator(mock_client)
         r = oe.calculate("600519.SH", "白酒")
         assert r.oe_cf_cv >= 0
@@ -50,7 +50,7 @@ class TestOECalculatorDeep:
 
     def test_oe_trend_check(self, mock_client):
         """Trend check should evaluate CAGR."""
-        from src.calculator.turtle_strategy.oe_calculator import OECalculator
+        from src.turtle.calculator.oe_calculator import OECalculator
         oe = OECalculator(mock_client)
         r = oe.calculate("600519.SH", "白酒")
         # CAGR calculated
@@ -62,20 +62,20 @@ class TestOECalculatorDeep:
 
     def test_three_factor_asset_intensity(self, mock_client):
         """All three asset intensity factors should be evaluated."""
-        from src.calculator.turtle_strategy.oe_calculator import OECalculator
+        from src.turtle.calculator.oe_calculator import OECalculator
         oe = OECalculator(mock_client)
         r = oe.calculate("600519.SH", "白酒")
         assert r.asset_intensity_score > 0
 
     def test_maintenance_coefficient_bounds(self, mock_client):
-        from src.calculator.turtle_strategy.oe_calculator import OECalculator
+        from src.turtle.calculator.oe_calculator import OECalculator
         oe = OECalculator(mock_client)
         for ind in ["钢铁", "电力", "科技", "医药", "食品"]:
             r = oe.calculate("600519.SH", ind)
             assert 0.10 <= r.maintenance_coefficient <= 0.90
 
     def test_energy_industry_prior(self, mock_client):
-        from src.calculator.turtle_strategy.oe_calculator import OECalculator
+        from src.turtle.calculator.oe_calculator import OECalculator
         oe = OECalculator(mock_client)
         r = oe.calculate("600519.SH", "石油")
         # "石油" not in keyword map → falls back to default 0.60
@@ -83,14 +83,14 @@ class TestOECalculatorDeep:
         assert r.industry_prior in (0.60, 0.75)
 
     def test_default_industry_prior(self, mock_client):
-        from src.calculator.turtle_strategy.oe_calculator import OECalculator
+        from src.turtle.calculator.oe_calculator import OECalculator
         oe = OECalculator(mock_client)
         r = oe.calculate("600519.SH", "未知行业XYZ")
         assert r.industry_prior == 0.60
 
     def test_empty_cashflow_graceful(self, mock_client):
         mock_client.cashflow.return_value = pd.DataFrame()
-        from src.calculator.turtle_strategy.oe_calculator import OECalculator
+        from src.turtle.calculator.oe_calculator import OECalculator
         oe = OECalculator(mock_client)
         r = oe.calculate("000001.SZ")
         assert len(r.oe_cf_values) == 0
@@ -100,7 +100,7 @@ class TestOECalculatorDeep:
             "ts_code": "t", "end_date": "20241231",
             "n_cashflow_act": 1000, "c_pay_acq_const_fiolta": 50,
         }])
-        from src.calculator.turtle_strategy.oe_calculator import OECalculator
+        from src.turtle.calculator.oe_calculator import OECalculator
         oe = OECalculator(mock_client)
         r = oe.calculate("t")
         assert len(r.oe_cf_values) <= 1  # May filter if less than 2 rows
@@ -110,25 +110,25 @@ class TestOECalculatorDeep:
 
 class TestL5CalculatorDeep:
     def test_revenue_stability(self, mock_client):
-        from src.calculator.turtle_strategy.l5_calculator import L5Calculator
+        from src.turtle.calculator.l5_calculator import L5Calculator
         l5 = L5Calculator(mock_client)
         r = l5.calculate("600519.SH", "白酒")
         assert "revenue_stability" in r.extrapolation_dims
 
     def test_margin_stability(self, mock_client):
-        from src.calculator.turtle_strategy.l5_calculator import L5Calculator
+        from src.turtle.calculator.l5_calculator import L5Calculator
         l5 = L5Calculator(mock_client)
         r = l5.calculate("600519.SH", "白酒")
         assert "margin_stability" in r.extrapolation_dims
 
     def test_roe_stability(self, mock_client):
-        from src.calculator.turtle_strategy.l5_calculator import L5Calculator
+        from src.turtle.calculator.l5_calculator import L5Calculator
         l5 = L5Calculator(mock_client)
         r = l5.calculate("600519.SH", "白酒")
         assert "roe_stability" in r.extrapolation_dims
 
     def test_industry_predictability_various(self, mock_client):
-        from src.calculator.turtle_strategy.l5_calculator import L5Calculator
+        from src.turtle.calculator.l5_calculator import L5Calculator
         l5 = L5Calculator(mock_client)
         tests = [("白酒", 5), ("医药", 4), ("科技", 2), ("能源", 1), ("消费", 5)]
         for ind, expected in tests:
@@ -139,27 +139,27 @@ class TestL5CalculatorDeep:
 
     def test_value_trap_complete(self, mock_client):
         """Value trap checks should run without error."""
-        from src.calculator.turtle_strategy.l5_calculator import L5Calculator
+        from src.turtle.calculator.l5_calculator import L5Calculator
         l5 = L5Calculator(mock_client)
         r = l5.calculate("600519.SH", "白酒")
         assert r.trap_level in ("低风险", "中风险", "高风险")
 
     def test_position_matrix_levels(self, mock_client):
-        from src.calculator.turtle_strategy.l5_calculator import L5Calculator
+        from src.turtle.calculator.l5_calculator import L5Calculator
         l5 = L5Calculator(mock_client)
         r = l5.calculate("600519.SH", "白酒")
         assert r.position_label
         assert r.l5_score <= 25
 
     def test_management_stability_default(self, mock_client):
-        from src.calculator.turtle_strategy.l5_calculator import L5Calculator
+        from src.turtle.calculator.l5_calculator import L5Calculator
         l5 = L5Calculator(mock_client)
         r = l5.calculate("600519.SH", "白酒")
         assert r.extrapolation_dims.get("management_stability", 0) == 3
 
     def test_pledge_check(self, mock_client):
         mock_client.pledge_stat.return_value = pd.DataFrame()
-        from src.calculator.turtle_strategy.l5_calculator import L5Calculator
+        from src.turtle.calculator.l5_calculator import L5Calculator
         l5 = L5Calculator(mock_client)
         r = l5.calculate("600519.SH", "白酒")
         assert r.trap_score >= 0
@@ -170,14 +170,14 @@ class TestL5CalculatorDeep:
 class TestPRCalculatorDeep:
     def test_starting_score_below_5(self, mock_client):
         """PR below 5% should get starting_score 0."""
-        from src.calculator.turtle_strategy.pr_calculator import PRCalculator
+        from src.turtle.calculator.pr_calculator import PRCalculator
         pr = PRCalculator(mock_client)
         r = pr.calculate("600519.SH", "白酒")
         if r.pr_pct < 5:
             assert r.starting_score == 0
 
     def test_l4_score_non_negative(self, mock_client):
-        from src.calculator.turtle_strategy.pr_calculator import PRCalculator
+        from src.turtle.calculator.pr_calculator import PRCalculator
         pr = PRCalculator(mock_client)
         r = pr.calculate("600519.SH", "白酒")
         assert r.l4_score >= 0
@@ -187,7 +187,7 @@ class TestPRCalculatorDeep:
 
 class TestRulesLoaderDeep:
     def test_load_rules_all_sections(self):
-        from src.rules.loader import load_rules
+        from src.turtle.rules.loader import load_rules
         rules = load_rules()
         assert rules.hard_gate.audit_opinion.enabled
         assert rules.l2_screener.pool_thresholds.candidate == 12
@@ -199,12 +199,12 @@ class TestRulesLoaderDeep:
         monkeypatch.setenv("RULES_DIR", str(
             __import__("pathlib").Path(__file__).parent.parent.parent / "rules"
         ))
-        from src.rules.loader import _find_rules_dir
+        from src.turtle.rules.loader import _find_rules_dir
         d = _find_rules_dir()
         assert d.name == "rules"
 
     def test_rules_dir_invalid(self):
-        from src.rules.loader import _find_rules_dir
+        from src.turtle.rules.loader import _find_rules_dir
         with pytest.raises(FileNotFoundError):
             _find_rules_dir(__import__("pathlib").Path("/nonexistent/xyz"))
 
@@ -213,7 +213,7 @@ class TestRulesLoaderDeep:
 
 class TestTransformerDeep:
     def test_parse_date_edge_cases(self):
-        from src.data_pool.transformer.tushare_transformer import _parse_date
+        from src.core.data.pool.transformer.tushare_transformer import _parse_date
         assert _parse_date(20010827) == date(2001, 8, 27)
         assert _parse_date("19991231") == date(1999, 12, 31)
         assert _parse_date(None) is None
@@ -221,12 +221,12 @@ class TestTransformerDeep:
         assert _parse_date("invalid") is None
 
     def test_parse_date_float(self):
-        from src.data_pool.transformer.tushare_transformer import _parse_date
+        from src.core.data.pool.transformer.tushare_transformer import _parse_date
         assert _parse_date(20010827.0) == date(2001, 8, 27)
 
     def test_df_to_models_empty(self):
-        from src.data_pool.transformer.tushare_transformer import tushare_df_to_models
-        from src.data_pool.schema.models import StockBasic
+        from src.core.data.pool.transformer.tushare_transformer import tushare_df_to_models
+        from src.core.data.pool.schema.models import StockBasic
         models, errors = tushare_df_to_models(pd.DataFrame(), StockBasic)
         assert len(models) == 0
 
@@ -235,7 +235,7 @@ class TestTransformerDeep:
 
 class TestStorageDeep:
     def test_save_with_metadata(self, tmp_path):
-        from src.data_pool.storage.local_storage import LocalStorage
+        from src.core.data.pool.storage.local_storage import LocalStorage
         store = LocalStorage(tmp_path / "data")
         df = pd.DataFrame({"a": [1]})
         store.save(df, "test", format="json", metadata={"source": "test"})
@@ -243,7 +243,7 @@ class TestStorageDeep:
         assert len(loaded) == 1
 
     def test_exists_false(self, tmp_path):
-        from src.data_pool.storage.local_storage import LocalStorage
+        from src.core.data.pool.storage.local_storage import LocalStorage
         store = LocalStorage(tmp_path / "data")
         assert not store.exists("nonexistent")
 
@@ -252,13 +252,13 @@ class TestStorageDeep:
 
 class TestScreenerDeep:
     def test_hardgate_audit_opinion_good(self, mock_client):
-        from src.screener.hard_gate import HardGateChecker
+        from src.turtle.screening.hard_gate import HardGateChecker
         checker = HardGateChecker(mock_client)
         r = checker.check("600519.SH")
         assert r.passed
 
     def test_l2_thresholds_service_pool(self, mock_client):
-        from src.screener.l2_screener import L2Screener
+        from src.turtle.screening.l2_screener import L2Screener
         l2 = L2Screener(mock_client)
         r = l2.score("600519.SH")
         assert r.total >= 0
@@ -269,7 +269,7 @@ class TestScreenerDeep:
             "ts_code": "t", "total_assets": 10000,
             "tradable_fin_assets": 3000, "long_term_equity_invest": 2000,
         }])
-        from src.screener.classifier import CompanyClassifier
+        from src.turtle.screening.classifier import CompanyClassifier
         cls = CompanyClassifier(mock_client)
         r = cls.classify("600519.SH")
         assert r.category in ("STANDARD_CONSUMER", "HOLDING_COMPANY")
@@ -282,7 +282,7 @@ class TestScoringDeep:
         mock_client.fina_indicator.return_value = pd.DataFrame([{
             "ts_code": "t", "roe": 30, "grossprofit_margin": 80,
         }])
-        from src.calculator.turtle_strategy.scoring import TurtleScorer
+        from src.turtle.calculator.scoring import TurtleScorer
         scorer = TurtleScorer(mock_client)
         r = scorer.score("600519.SH")
         assert r.l3_multiplier == 1.2
@@ -291,7 +291,7 @@ class TestScoringDeep:
         mock_client.fina_indicator.return_value = pd.DataFrame([{
             "ts_code": "t", "roe": 2.0,
         }])
-        from src.calculator.turtle_strategy.scoring import TurtleScorer
+        from src.turtle.calculator.scoring import TurtleScorer
         scorer = TurtleScorer(mock_client)
         r = scorer.score("600519.SH")
         assert not r.is_valid

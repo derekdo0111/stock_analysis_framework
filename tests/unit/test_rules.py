@@ -14,8 +14,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from src.rules.loader import load_rules, _find_rules_dir, _load_yaml
-from src.rules.schemas import (
+from src.turtle.rules.loader import load_rules, _find_rules_dir, _load_yaml
+from src.turtle.rules.schemas import (
     AgentConstraints,
     HardGateConfig,
     L2ScreenerConfig,

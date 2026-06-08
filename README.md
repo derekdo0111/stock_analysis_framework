@@ -1,6 +1,6 @@
-# Stock Analysis Framework — 龟龟投资策略 v0.27
+# Augur — Stock Analysis Framework v0.36
 
-融合龟龟投资策略完整方法论的 A 股量化分析框架，从选股到报告生成的全管线。
+> 🏛️ **Augur** /ˈɔː.ɡər/ — 古罗马占卜官。不靠水晶球，靠数据观象推演。多策略 A 股量化分析框架，从全A筛选到报告生成的全管线。龟龟策略是其中一种深度防御型策略（另有趋势策略、多因子策略待开发）。
 
 > GitHub: https://github.com/derekdo0111/stock_analysis_framework
 

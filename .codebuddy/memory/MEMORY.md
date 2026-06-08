@@ -79,37 +79,31 @@
 - 三大报表字段 Tushare 返回"元"；daily_basic.total_mv 返回"万元"；fina_indicator 比率类返回"%"
 
 ### stock-analysis-framework (D:\project\stock-analysis-framework\)
-- 龟龟投资策略 v0.33，Python 3.11+ / Pydantic v2 / Pandas / Tushare / Jinja2 / loguru / tenacity
-- 阶段一~六完成，82 源文件
-- v0.33: DC公式纯流量修正 — 删除4个资产负债表存量项(money_cap/restricted_cash/st_borr/trad_assets)，回归纯流量公式(经营CF-维持性CAPEX-并购-参股-财务费用); OE质检卡片嵌入Section 7(仅非🟢显示四项质检明细); brief.md L4展开OE质检; PRCalculationResult+2字段(oe_to_profit_ratio, bs_unexplained_diff_pct)
-- v0.32: 报告分析主导 — 分析Agent新增4个逐章点评字段(financial_insight_commentary/business_knowledge_synthesis/l3_scoring_commentary/valuation_commentary各≤1000字); full_report从丢弃→Section 2完整展示; extract_claims每维度1条概括(9-12条); CV全通过→1条绿色横幅(不展示逐条); 全通过跳过Phase 5b.5; 修复claim重复匹配(维度名→claim_id精确); brief_md截断14000→30000
-- v0.31: Token优化 — extract_claims仅提取3种核心声明+同类合并+上限~25条; verify_claims_batch从逐条(100次API)→一次批量核查; 跳过pipeline_calculation/data_citation(Python代码无需LLM核查)
-- v0.30 新增: 结构化声明审计循环 — 分析Agent提取原子声明(5种claim_type) → CV逐条核查(按类型分策略+方法论文档) → 分析Agent回炉修正(accept/dispute/clarify)
-- v0.29 新增: Phase 5c 根因反思 — CV标⚠/✗/?后分析Agent对每个问题项做二次诊断推理，区分企业真实问题/数据质量问题/评估规则偏差/信息不足
-- v0.28: CV报告布局重排(管线摘要前置→Agent分析主角→CV验证瘦身移到最后) + 仅展示⚠/✗/?问题项
-- v0.27: 三阶段LLM统一管线 — 商业检索Agent(web_search tool calling) → 分析Agent(full brief.md) → 交叉验证(验证分析结论)
-- v0.27 重构: CLI统一入口(移除--llm/--cross-validate/--brief分叉), 三模型独立配置(LLM_RETRIEVAL/ANALYSIS/VALIDATION_MODEL)
-- v0.26 修复: 取数粒度(年报过滤) + 列名(st_borr/trad_asset) + NaN防御(_safe_val) + 单位换算(万元→亿元) + 送转股排除
-- v0.26 结果: 矛盾率 57%→40%，茅台营收CAGR -24.9%→6.9%，DC NaN→1075亿，PR NaN%→4.33%
-- v0.25 新增: 7模块财报深度分析(纯Python) + LLM商业知识检索(合并交叉验证) + 三维对比(管线vs财报洞察vs LLM知识) + 删除DuckDuckGo
-- v0.23 核心公式: **Final = L3(30pt) + L4(45pt) + L5(25pt) = 100pt** (加法百分制)
-- L3: 十二维商业模式评估 (盈利能力5+成熟度3+资本纪律2+治理2), 每维0-2分, 满分24→30
-- L4: 穿透回报率, 内部满分40缩放至45
-- L5: 纯估值安全边际 (估值安全边际率15 + 下行缓冲5 + 仓位5), 折现率7%
-- L2 降级为纯门控, 不参与最终评分
+- **框架正式命名: Augur** — 多策略股票分析框架。龟龟策略是其中一种策略（还有趋势策略、多因子策略待开发）。Python 3.11+ / Pydantic v2 / Pandas / Tushare / Jinja2 / loguru / tenacity
+- 阶段一~六完成，源码已重构为多策略架构
+- **v0.35 多策略架构重构** (2026-06-07):
+  - `src/core/` — 所有策略共用的基础能力层 (data + llm + utils)
+    - core/data/ — Tushare 客户端 + 数据池编排 (合并原 data_fetcher + data_pool)
+    - core/llm/ — LLM 基础设施 (5文件: client/cache/tools/provider/manager, 零策略依赖)
+    - core/utils/ — 工具库
+  - `src/turtle/` — 龟龟策略完整内聚 (原散落在 calculator/screener/llm/reporter/rules/cli)
+    - turtle/calculator/ — L2-L5 计算引擎 (含 financial_deep_analysis/financial_ratios/unit_converter)
+    - turtle/screening/ — 全A筛选 (含 run_screener.py)
+    - turtle/llm/ — 龟龟专属 LLM Agent (8文件)
+    - turtle/reporter/ — 报告生成
+    - turtle/rules/ — YAML 规则 + Pydantic Schema (含 loader/injector/validator)
+    - turtle/cli.py — stock-analyze CLI 入口
+  - `src/strategies/` — 策略插件层 (BaseStrategy ABC + 自动发现注册表 + turtle 适配器)
+  - 已删除死代码: src/llm/schema.py (全项目 0 引用)
+  - pyproject.toml CLI 入口: src.cli:main → src.turtle.cli:main
+  - 100+ 文件 import 路径批量自动修正
+- v0.34: L3管理层稳定性LLM后修正 — management_stability_signal(stable/unclear/frequent_change)
+- v0.33: DC公式纯流量修正
+- v0.32: 报告分析主导 + 4段逐章点评 + CV全通过简化
+- 新管线(v0.32): Phase1→Phase2→Phase3→Phase3.5→Phase4→Phase5a→Phase5a.5→Phase5b→Phase5b.5→Phase5c→Phase6
+- 核心公式: Final = L3(30pt) + L4(45pt) + L5(25pt) = 100pt
 - 分池阈值: 核心≥75, 观察50-74, 备选<50
 - GitHub: https://github.com/derekdo0111/stock_analysis_framework (main 分支)
-- 新管线(v0.32): Phase1(Tushare) → Phase2(打分) → Phase3(财报深度分析) → Phase3.5(商业检索LLM) → Phase4(完整brief.md) → Phase5a(分析Agent,含4段逐章点评) → Phase5a.5(声明提取,每维度1条,9-12条) → Phase5b(一次批量CV核查) → Phase5b.5(回炉修正,仅有问题时触发) → Phase5c(根因反思) → Phase6(HTML报告,分析主导85:15)
-- 财报深度分析: 7模块纯Python确定性计算, 从Tushare三大报表提取结构化洞察, v0.26修复年报过滤防止季/年报混算
-- LLM 商业知识检索(v0.27): 独立LLM Agent + web_search tool calling获取5类实时商业信息, 标注置信度+来源URL
-- LLM 分析Agent(v0.32): 基于完整brief.md(5 Section)撰写个性化投资分析报告 + 4段逐章LLM点评(财报/商业/L3/L4各≤1000字), 三段式证据链
-- LLM 交叉验证(v0.32): 结构化声明核查模式 — 分析Agent自拆核心声明(每维度1条,9-12条) → CV一次批量核查 → 全通过时仅1条绿色横幅; 有问题时仅展示⚠/✗/?
-- 降级链: Phase3.5(无API→跳过) → Phase5a(LLM→Python默认打分) → Phase5b(LLM→关键词规则引擎)
-- 核心理念：确定性计算(Python)与智能判断(LLM)彻底分离 — v0.27 进一步分离：商业检索(搜索) vs 分析(推理) vs 验证(核查)
-- 所有规则存储在 YAML 中(4个: hard_gate/l2_screener/turtle_constants/agent_constraints)，代码不做硬编码阈值
-- **v0.30 CV Agent 专属方法论文档** `rules/cv_methodology_brief.md`：注入 CV System Prompt 的公式/打分逻辑/核查规则（与分析Agent的 agent_constraints.yaml 完全独立）
-- 数据双格式存储：JSON（可读调试）+ Parquet（高性能查询）
-- 数据源四层架构：Tushare(主) → akshare(备用) → 财报深度分析(Python) → 商业检索LLM(web_search, v0.27) → 年报PDF(降级)
 
 ### Projects Location
 - 所有项目统一放在 D:\project\ 下，不放在 C:\Users\harry\CodeBuddy\

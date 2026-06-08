@@ -17,7 +17,7 @@ from typing import Optional
 from loguru import logger
 
 from src.agents.context import SharedContext
-from src.calculator.turtle_strategy.scoring import FinalScore
+from src.turtle.calculator.scoring import FinalScore
 
 
 @dataclass

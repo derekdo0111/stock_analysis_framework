@@ -11,8 +11,8 @@ import tempfile
 
 import pytest
 
-from src.data_fetcher.tushare_client import TushareClient
-from src.data_pool.schema.models import (
+from src.core.data.tushare_client import TushareClient
+from src.core.data.pool.schema.models import (
     AuditOpinion,
     CashFlowStatement,
     DividendRecord,
@@ -20,8 +20,8 @@ from src.data_pool.schema.models import (
     IncomeStatement,
     StockBasic,
 )
-from src.data_pool.storage.local_storage import LocalStorage
-from src.data_pool.transformer.tushare_transformer import tushare_df_to_models
+from src.core.data.pool.storage.local_storage import LocalStorage
+from src.core.data.pool.transformer.tushare_transformer import tushare_df_to_models
 
 
 TOKEN_AVAILABLE = bool(os.environ.get("TUSHARE_TOKEN"))

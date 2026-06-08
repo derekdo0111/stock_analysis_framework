@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "stock-analysis-framework"
-version = "0.33.0"
-description = "龟龟投资策略框架 v0.27 — 三阶段LLM统一管线：商业检索(web_search)→分析Agent(full brief.md)→交叉验证(验证分析结论)"
+version = "0.36.0"
+description = "Augur v0.36 — 多策略股票分析框架 · 古罗马占卜官：不靠水晶球，靠数据观象推演"
 authors = ["harry <harry@example.com>"]
 readme = "README.md"
 packages = [{ include = "src" }]
@@ -35,7 +35,7 @@ jupyter = ">=1.0"
 openpyxl = ">=3.1"
 
 [tool.poetry.scripts]
-stock-analyze = "src.cli:main"
+stock-analyze = "src.turtle.cli:main"
 
 [build-system]
 requires = ["poetry-core"]

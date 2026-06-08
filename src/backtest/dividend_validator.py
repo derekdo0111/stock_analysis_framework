@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from src.data_pool.bundle import StockDataBundle
+from src.core.data.pool.bundle import StockDataBundle
 from src.backtest.window_manager import BacktestWindow
 
 

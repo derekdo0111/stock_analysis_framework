@@ -4,11 +4,11 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
-from src.calculator.turtle_strategy.oe_calculator import OECalculator
-from src.calculator.turtle_strategy.pr_calculator import PRCalculator
-from src.calculator.turtle_strategy.l5_calculator import L5Calculator
-from src.calculator.turtle_strategy.scoring import TurtleScorer, FinalScore
-from src.data_pool.bundle import StockDataBundle
+from src.turtle.calculator.oe_calculator import OECalculator
+from src.turtle.calculator.pr_calculator import PRCalculator
+from src.turtle.calculator.l5_calculator import L5Calculator
+from src.turtle.calculator.scoring import TurtleScorer, FinalScore
+from src.core.data.pool.bundle import StockDataBundle
 
 
 @pytest.fixture
@@ -61,7 +61,7 @@ class TestOEEdgeCases:
             income=pd.DataFrame(),
         )
         oe = OECalculator(bundle)
-        from src.calculator.turtle_strategy.oe_calculator import OECalculationResult
+        from src.turtle.calculator.oe_calculator import OECalculationResult
         r = oe.calculate("000001.SZ")
         assert isinstance(r, OECalculationResult)
         assert len(r.oe_cf_values) == 0

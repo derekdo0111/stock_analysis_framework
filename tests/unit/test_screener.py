@@ -5,9 +5,9 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-from src.screener.hard_gate import HardGateChecker, HardGateResult
-from src.screener.l2_screener import L2Screener, L2ScoreResult
-from src.screener.classifier import CompanyClassifier, ClassifyResult
+from src.turtle.screening.hard_gate import HardGateChecker, HardGateResult
+from src.turtle.screening.l2_screener import L2Screener, L2ScoreResult
+from src.turtle.screening.classifier import CompanyClassifier, ClassifyResult
 
 
 @pytest.fixture
